@@ -8,6 +8,7 @@ import { Avatar } from "@/components/Avatar";
 import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
 import { useData } from "@/lib/data/store";
+import { goBack } from "@/lib/nav";
 
 // Part of F01 — new user creates a group (feeds into S04/S12)
 export default function CreateGroup() {
@@ -39,7 +40,7 @@ export default function CreateGroup() {
   return (
     <SafeAreaView className="flex-1 bg-bg">
       <View className="flex-row items-center gap-3 border-b border-border p-4">
-        <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => goBack(router, "/")}>
           <Feather name="arrow-left" size={22} color="#1f2430" />
         </Pressable>
         <Text className="font-display text-lg text-text">New group</Text>
@@ -52,7 +53,7 @@ export default function CreateGroup() {
           <Text className="font-sans-semibold text-sm text-text">Add members</Text>
           {friends.length === 0 ? (
             <Text className="font-sans text-sm text-muted">
-              You don't have any friends on Splitsy yet — you can invite people once the group is
+              You don&apos;t have any friends on Splitsy yet — you can invite people once the group is
               created.
             </Text>
           ) : (

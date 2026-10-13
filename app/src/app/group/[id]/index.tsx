@@ -9,6 +9,7 @@ import { Button } from "@/components/Button";
 import { EmptyState } from "@/components/EmptyState";
 import { formatCents } from "@/lib/data/balances";
 import { useData } from "@/lib/data/store";
+import { goBack } from "@/lib/nav";
 
 const CATEGORY_ICON: Record<string, React.ComponentProps<typeof Feather>["name"]> = {
   rent: "home",
@@ -45,7 +46,7 @@ export default function GroupDetail() {
     <SafeAreaView className="flex-1 bg-bg">
       <View className="flex-row items-center justify-between border-b border-border p-4">
         <View className="flex-row items-center gap-3">
-          <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => goBack(router, "/")}>
             <Feather name="arrow-left" size={22} color="#1f2430" />
           </Pressable>
           <Text className="font-display text-lg text-text">{group.name}</Text>
@@ -72,14 +73,16 @@ export default function GroupDetail() {
         <View className="gap-3 rounded-lg border border-border bg-surface p-4">
           <View className="flex-row items-center justify-between">
             <Text className="font-sans text-sm text-muted">Your balance</Text>
-            {mine ? (
-              <BalanceChip
-                state={mine.balanceCents > 0 ? "owed-to-you" : "you-owe"}
-                amount={formatCents(Math.abs(mine.balanceCents), group.defaultCurrency)}
-              />
-            ) : (
-              <BalanceChip state="settled" />
-            )}
+            <View testID="group-balance">
+              {mine ? (
+                <BalanceChip
+                  state={mine.balanceCents > 0 ? "owed-to-you" : "you-owe"}
+                  amount={formatCents(Math.abs(mine.balanceCents), group.defaultCurrency)}
+                />
+              ) : (
+                <BalanceChip state="settled" />
+              )}
+            </View>
           </View>
 
           {transfers.length > 0 ? (

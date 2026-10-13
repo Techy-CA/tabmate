@@ -5,3 +5,7 @@ web-build/
 *.log
 .DS_Store
 replica/screens/
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/

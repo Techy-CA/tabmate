@@ -9,6 +9,7 @@ import { Button } from "@/components/Button";
 import { EmptyState } from "@/components/EmptyState";
 import { formatCents } from "@/lib/data/balances";
 import { useData } from "@/lib/data/store";
+import { goBack } from "@/lib/nav";
 
 // S10 — Friend detail
 export default function FriendDetail() {
@@ -25,7 +26,7 @@ export default function FriendDetail() {
   return (
     <SafeAreaView className="flex-1 bg-bg">
       <View className="flex-row items-center gap-3 border-b border-border p-4">
-        <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => goBack(router, "/")}>
           <Feather name="arrow-left" size={22} color="#1f2430" />
         </Pressable>
         <Avatar id={friend.id} name={friend.name} size="sm" />

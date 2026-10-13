@@ -6,6 +6,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Avatar } from "@/components/Avatar";
 import { formatCents } from "@/lib/data/balances";
 import { useData } from "@/lib/data/store";
+import { goBack } from "@/lib/nav";
 
 // S14 — Totals
 export default function Totals() {
@@ -29,7 +30,7 @@ export default function Totals() {
   return (
     <SafeAreaView className="flex-1 bg-bg">
       <View className="flex-row items-center gap-3 border-b border-border p-4">
-        <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => goBack(router, `/group/${id}`)}>
           <Feather name="arrow-left" size={22} color="#1f2430" />
         </Pressable>
         <Text className="font-display text-lg text-text">Totals</Text>

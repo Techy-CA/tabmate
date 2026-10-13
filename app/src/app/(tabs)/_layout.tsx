@@ -5,7 +5,7 @@ import { useAuth } from "@/lib/auth";
 
 export default function TabsLayout() {
   const { isAuthenticated } = useAuth();
-  if (!isAuthenticated) return <Redirect href="/" />;
+  if (!isAuthenticated) return <Redirect href="/welcome" />;
 
   return (
     <Tabs

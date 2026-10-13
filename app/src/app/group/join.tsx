@@ -7,6 +7,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
 import { useData } from "@/lib/data/store";
+import { goBack } from "@/lib/nav";
 
 // S17 — Join an existing group via invite code
 export default function JoinGroup() {
@@ -29,7 +30,7 @@ export default function JoinGroup() {
   return (
     <SafeAreaView className="flex-1 bg-bg">
       <View className="flex-row items-center gap-3 border-b border-border p-4">
-        <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => goBack(router, "/")}>
           <Feather name="arrow-left" size={22} color="#1f2430" />
         </Pressable>
         <Text className="font-display text-lg text-text">Join a group</Text>
@@ -50,7 +51,7 @@ export default function JoinGroup() {
 
         {preview ? (
           <View className="gap-1 rounded-lg border border-border bg-surface p-4">
-            <Text className="font-sans text-xs text-muted">You're about to join</Text>
+            <Text className="font-sans text-xs text-muted">You&apos;re about to join</Text>
             <Text className="font-sans-semibold text-base text-text">{preview.name}</Text>
           </View>
         ) : null}

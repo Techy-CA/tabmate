@@ -59,7 +59,7 @@ export default function Account() {
         <Pressable
           onPress={() => {
             signOut();
-            router.replace("/");
+            router.replace("/welcome");
           }}
           accessibilityRole="button"
           className="items-center rounded-md border border-border py-3"

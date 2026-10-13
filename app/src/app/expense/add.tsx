@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -12,7 +12,11 @@ import { formatCents } from "@/lib/data/balances";
 import { computeShares, remainderLabel } from "@/lib/data/split";
 import { useData } from "@/lib/data/store";
 import type { RepeatInterval, SplitType, User } from "@/lib/data/types";
+import { goBack } from "@/lib/nav";
 
+// "itemized" is a real SplitType in the data model (recon.md S07) but the
+// item-assignment UI isn't built yet — left out here rather than shipping a
+// selectable option that silently saves a zero split. See build-log.md.
 const SPLIT_OPTIONS: { value: SplitType; label: string }[] = [
   { value: "equal", label: "Equally" },
   { value: "exact", label: "Exact" },
@@ -57,10 +61,7 @@ export default function AddExpense() {
   const [splitSheetOpen, setSplitSheetOpen] = useState(false);
   const [error, setError] = useState<string | undefined>();
 
-  const shares = useMemo(
-    () => computeShares(splitType, amountCents, participantIds, inputs),
-    [splitType, amountCents, participantIds, inputs]
-  );
+  const shares = computeShares(splitType, amountCents, participantIds, inputs);
   const remainder = remainderLabel(splitType, amountCents, participantIds, inputs);
 
   const toggleFriend = (id: string) => {
@@ -97,13 +98,17 @@ export default function AddExpense() {
       paidBy: [{ userId: paidBy, amountCents }],
       owedBy: shares,
     });
-    router.back();
+    goBack(router, groupId ? `/group/${groupId}` : "/");
   };
 
   return (
     <SafeAreaView className="flex-1 bg-bg">
       <View className="flex-row items-center justify-between border-b border-border p-4">
-        <Pressable accessibilityRole="button" accessibilityLabel="Cancel" onPress={() => router.back()}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Cancel"
+          onPress={() => goBack(router, groupId ? `/group/${groupId}` : "/")}
+        >
           <Feather name="x" size={22} color="#1f2430" />
         </Pressable>
         <Text className="font-display text-lg text-text">Add expense</Text>

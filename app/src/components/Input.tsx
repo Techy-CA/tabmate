@@ -39,6 +39,7 @@ export function Input({ label, error, prefix, hideLabel, ...rest }: InputProps) 
         {prefix ? <Text className="mr-1 font-sans text-base text-muted">{prefix}</Text> : null}
         <TextInput
           {...rest}
+          accessibilityLabel={label}
           accessibilityLabelledBy={`${label}-label`}
           onFocus={(e) => {
             setFocused(true);

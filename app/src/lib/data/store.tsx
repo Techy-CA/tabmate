@@ -41,12 +41,17 @@ type NewExpenseInput = {
   expenseDate: string;
   splitType: SplitType;
   paidBy: { userId: string; amountCents: number }[];
-  owedBy: { userId: string; amountCents: number }[];
+  owedBy: { userId: string; owedCents: number }[];
   repeatInterval?: Expense["repeatInterval"];
 };
 
 type NewPaymentInput = {
   groupId?: string;
+  // Both directions are real: "I paid them back" and "record that they paid
+  // me" (recon.md quotes the original's own help text: "pay someone back or
+  // record that you've been paid"). fromUserId defaults to the current user
+  // so existing call sites (always "I paid") don't need to change.
+  fromUserId?: string;
   toUserId: string;
   amountCents: number;
   currencyCode: string;
@@ -197,9 +202,18 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     (friendId: string) => {
       let net = 0;
       for (const e of getFriendExpenses(friendId)) {
+        if (e.deletedAt) continue;
         const mine = e.shares.find((s) => s.userId === CURRENT_USER_ID);
-        if (mine) net += mine.paidCents - mine.owedCents;
-        // only count the portion between these two people when others are on the expense too
+        const theirs = e.shares.find((s) => s.userId === friendId);
+        if (!mine || !theirs) continue;
+        const iPaid = mine.paidCents > 0;
+        const theyPaid = theirs.paidCents > 0;
+        // Every expense here has exactly one payer (our data model doesn't
+        // support multi-payer yet). Only count expenses where one of the two
+        // of us is that payer — a third person's expense creates debts
+        // toward THEM, not between us, so it's excluded from this pair.
+        if (iPaid && !theyPaid) net += theirs.owedCents;
+        else if (theyPaid && !iPaid) net -= mine.owedCents;
       }
       for (const p of payments) {
         if (p.status !== "confirmed") continue;
@@ -303,7 +317,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         createdBy: CURRENT_USER_ID,
         shares: input.owedBy.map((o) => ({
           userId: o.userId,
-          owedCents: o.amountCents,
+          owedCents: o.owedCents,
           paidCents: input.paidBy.find((p) => p.userId === o.userId)?.amountCents ?? 0,
         })),
         createdAt: new Date().toISOString(),
@@ -333,10 +347,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
   const createPayment = useCallback(
     (input: NewPaymentInput) => {
+      const fromUserId = input.fromUserId ?? CURRENT_USER_ID;
       const payment: Payment = {
         id: makeId("p"),
         groupId: input.groupId,
-        fromUserId: CURRENT_USER_ID,
+        fromUserId,
         toUserId: input.toUserId,
         amountCents: input.amountCents,
         currencyCode: input.currencyCode,
@@ -345,12 +360,16 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         createdAt: new Date().toISOString(),
       };
       setPayments((prev) => [payment, ...prev]);
+      const otherPartyId = fromUserId === CURRENT_USER_ID ? input.toUserId : fromUserId;
+      const otherPartyName = getUser(otherPartyId)?.name ?? "";
       logActivity({
         actorUserId: CURRENT_USER_ID,
         groupId: input.groupId,
         type: "payment_recorded",
         refId: payment.id,
-        metadata: { description: `Paid ${getUser(input.toUserId)?.name ?? ""}` },
+        metadata: {
+          description: fromUserId === CURRENT_USER_ID ? `Paid ${otherPartyName}` : `${otherPartyName} paid you`,
+        },
       });
       return payment;
     },

@@ -3,6 +3,8 @@ import { useRouter } from "expo-router";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { goBack } from "@/lib/nav";
+
 const FEATURES: { icon: React.ComponentProps<typeof Feather>["name"]; title: string; body: string }[] = [
   { icon: "camera", title: "Receipt scanning", body: "Photograph a bill and split it item by item." },
   { icon: "pie-chart", title: "Spending charts", body: "See where your group's money actually goes." },
@@ -16,7 +18,7 @@ export default function Pro() {
   return (
     <SafeAreaView className="flex-1 bg-bg">
       <View className="flex-row items-center gap-3 border-b border-border p-4">
-        <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => goBack(router, "/")}>
           <Feather name="arrow-left" size={22} color="#1f2430" />
         </Pressable>
         <Text className="font-display text-lg text-text">Splitsy Pro</Text>
@@ -43,7 +45,7 @@ export default function Pro() {
         <View className="items-center gap-2 rounded-lg border border-dashed border-border p-6">
           <Text className="font-sans-medium text-sm text-muted">Coming soon</Text>
           <Text className="text-center font-sans text-xs text-muted">
-            Pro billing isn't wired up yet — this is a placeholder screen from replica-build.
+            Pro billing isn&apos;t wired up yet — this is a placeholder screen from replica-build.
           </Text>
         </View>
       </ScrollView>

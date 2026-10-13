@@ -63,7 +63,7 @@ export default function SignUp() {
         />
 
         <Text className="font-sans text-xs text-muted">
-          By signing up, you accept Splitsy's Terms of Service and Privacy Policy.
+          By signing up, you accept Splitsy&apos;s Terms of Service and Privacy Policy.
         </Text>
       </View>
     </SafeAreaView>

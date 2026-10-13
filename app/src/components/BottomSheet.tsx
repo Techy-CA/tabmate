@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useState } from "react";
 import { Animated, Modal, Pressable, Text, View } from "react-native";
 
 export type BottomSheetProps = {
@@ -15,7 +15,7 @@ export type BottomSheetProps = {
  * gesture.
  */
 export function BottomSheet({ visible, onClose, title, children }: BottomSheetProps) {
-  const translateY = useRef(new Animated.Value(300)).current;
+  const [translateY] = useState(() => new Animated.Value(300));
 
   useEffect(() => {
     Animated.timing(translateY, {
