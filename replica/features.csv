@@ -1,35 +1,35 @@
 feature,area,priority,original,clone,notes
 Sign up with email or Google,onboarding,must,yes,partial,S02 built and verified (e2e); Google OAuth is a fake stub pending replica-backend
 Log in / log out / password reset,onboarding,must,yes,partial,S03 built and verified (e2e login helper); password reset not wired
-Create a group,groups,must,yes,partial,built, not click-tested this session
-Join a group via invite link,groups,must,yes,partial,built, not click-tested this session
-Add/remove group members,groups,must,yes,partial,built in S12, not click-tested this session; flat access - no admin role on original
-Add a non-group (one-off) expense,expenses,must,yes,partial,built via friend-picker in S06, not click-tested this session
-Add an expense with description/amount/date/category,expenses,must,yes,yes,verified end to end (manual + e2e), fixed BUG-002 (NaN balance) and BUG-004 (crash on save) found during testing
+Create a group,groups,must,yes,partial,"built, not click-tested this session"
+Join a group via invite link,groups,must,yes,partial,"built, not click-tested this session"
+Add/remove group members,groups,must,yes,partial,"built in S12, not click-tested this session; flat access - no admin role on original"
+Add a non-group (one-off) expense,expenses,must,yes,partial,"built via friend-picker in S06, not click-tested this session"
+Add an expense with description/amount/date/category,expenses,must,yes,yes,"verified end to end (manual + e2e), fixed BUG-002 (NaN balance) and BUG-004 (crash on save) found during testing"
 Split equally,expenses,must,yes,yes,verified end to end (manual + e2e)
 Split by exact amount,expenses,must,yes,yes,verified: per-person inputs and the remainder-blocks-save validation both confirmed (manual + e2e)
-Split by percentage,expenses,must,yes,partial,computeShares logic unit-equivalent to exact/shares, not individually click-tested
-Split by shares,expenses,must,yes,partial,computeShares logic unit-equivalent to exact/percentage, not individually click-tested
-Split by adjustment,expenses,must,yes,partial,computeShares logic present, not individually click-tested
+Split by percentage,expenses,must,yes,partial,"computeShares logic unit-equivalent to exact/shares, not individually click-tested"
+Split by shares,expenses,must,yes,partial,"computeShares logic unit-equivalent to exact/percentage, not individually click-tested"
+Split by adjustment,expenses,must,yes,partial,"computeShares logic present, not individually click-tested"
 Edit or delete an expense (any involved member),expenses,must,yes,partial,soft-delete tested manually; restore not re-tested after fixes; no edit UI yet (create-only)
 Per-group and per-friend balance view,balances,must,yes,yes,verified: all 4 seed friend balances hand-calculated and matched exactly after fixing BUG-003 (pairwise math)
-Simplify Debts (minimize payment paths),balances,must,yes,yes,verified: greedy algorithm confirmed correct by hand, including the reroute-after-partial-settle case
-Settle up - record a manual payment,payments,must,yes,yes,verified both directions (BUG-005 fix: "you pay" and "record that you were paid")
-Recurring expenses (weekly/fortnightly/monthly/yearly),expenses,should,yes,partial,repeat picker in S06 saves the field, "· repeats" indicator confirmed visually; no cron/scheduled posting yet (that's replica-backend)
+Simplify Debts (minimize payment paths),balances,must,yes,yes,"verified: greedy algorithm confirmed correct by hand, including the reroute-after-partial-settle case"
+Settle up - record a manual payment,payments,must,yes,yes,"verified both directions (BUG-005 fix: ""you pay"" and ""record that you were paid"")"
+Recurring expenses (weekly/fortnightly/monthly/yearly),expenses,should,yes,partial,"repeat picker in S06 saves the field, ""· repeats"" indicator confirmed visually; no cron/scheduled posting yet (that's replica-backend)"
 Multi-currency support per expense,expenses,should,yes,partial,data model supports it; UI is INR-only for now
 Itemized split from a receipt (manual entry),expenses,should,yes,no,correctly NOT exposed in the split-type picker yet - computeShares would return zero owed; needs the item-assignment screen first
-Comment on an expense,expenses,should,yes,yes,verified: add-comment tested manually, appears instantly and clears the input
-Activity feed / push notifications,notifications,should,yes,partial,feed built (S11) and trigger-equivalent logging wired, not click-tested this session; push notifications not implemented
+Comment on an expense,expenses,should,yes,yes,"verified: add-comment tested manually, appears instantly and clears the input"
+Activity feed / push notifications,notifications,should,yes,partial,"feed built (S11) and trigger-equivalent logging wired, not click-tested this session; push notifications not implemented"
 In-app settle-up payment (UPI/payment gateway),payments,should,no,partial,S09 UI verified (manual direction logic correct); no real Razorpay call yet
 Custom avatars and group cover photos,personalization,should,yes,no,deterministic initials-avatar only; photo upload not built
-Totals screen (group spending over a date range),analytics,should,yes,partial,S14 built with per-member paid/owed, not click-tested this session; no date-range filter yet
+Totals screen (group spending over a date range),analytics,should,yes,partial,"S14 built with per-member paid/owed, not click-tested this session; no date-range filter yet"
 Expense search,expenses,should,yes,no,not built
 Receipt photo OCR + auto-itemization,expenses,could,yes,no,not built
 Spending-by-category charts,analytics,could,yes,no,not built
 CSV/JSON export of expense history,data,could,yes,no,not built
 Offline entry with background sync,expenses,could,yes,no,not built
 Dark mode,personalization,could,no,no,tokens.css has a dark palette but the app doesn't switch themes yet
-Unlimited free expense entry (no daily cap),monetization,must,no,yes,no cap exists anywhere in the app - verified by reading the code, and by adding several expenses live in this session with no interstitial
+Unlimited free expense entry (no daily cap),monetization,must,no,yes,"no cap exists anywhere in the app - verified by reading the code, and by adding several expenses live in this session with no interstitial"
 Splitwise Pay (bank-linked debit card / money transfer),payments,skip,yes,skip,requires money-transmitter licensing - cannot clone
 Venmo/PayPal direct partner integration,payments,skip,yes,skip,their specific partner deal - not rebuildable 1:1
-Existing Splitwise user network,growth,skip,yes,skip,network effect belongs to the original, not a feature
+Existing Splitwise user network,growth,skip,yes,skip,"network effect belongs to the original, not a feature"
