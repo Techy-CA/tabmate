@@ -1,0 +1,35 @@
+feature,area,priority,original,clone,notes
+Sign up with email or Google,onboarding,must,yes,no,
+Log in / log out / password reset,onboarding,must,yes,no,
+Create a group,groups,must,yes,no,
+Join a group via invite link,groups,must,yes,no,
+Add/remove group members,groups,must,yes,no,flat access - no admin role on original
+Add a non-group (one-off) expense,expenses,must,yes,no,
+Add an expense with description/amount/date/category,expenses,must,yes,no,
+Split equally,expenses,must,yes,no,default split
+Split by exact amount,expenses,must,yes,no,
+Split by percentage,expenses,must,yes,no,
+Split by shares,expenses,must,yes,no,
+Split by adjustment,expenses,must,yes,no,
+Edit or delete an expense (any involved member),expenses,must,yes,no,restore deleted expense too
+Per-group and per-friend balance view,balances,must,yes,no,
+Simplify Debts (minimize payment paths),balances,must,yes,no,core differentiator algorithm
+Settle up - record a manual payment,payments,must,yes,no,
+Recurring expenses (weekly/fortnightly/monthly/yearly),expenses,should,yes,no,
+Multi-currency support per expense,expenses,should,yes,no,
+Itemized split from a receipt (manual entry),expenses,should,yes,no,
+Comment on an expense,expenses,should,yes,no,
+Activity feed / push notifications,notifications,should,yes,no,
+In-app settle-up payment (UPI/payment gateway),payments,should,no,no,original uses PayPal/Venmo/Splitwise Pay - we localize instead of copying
+Custom avatars and group cover photos,personalization,should,yes,no,
+Totals screen (group spending over a date range),analytics,should,yes,no,
+Expense search,expenses,should,yes,no,
+Receipt photo OCR + auto-itemization,expenses,could,yes,no,original gates this behind Pro
+Spending-by-category charts,analytics,could,yes,no,original gates this behind Pro
+CSV/JSON export of expense history,data,could,yes,no,original gates this behind Pro
+Offline entry with background sync,expenses,could,yes,no,
+Dark mode,personalization,could,no,no,not confirmed on original - our own UX upgrade
+Unlimited free expense entry (no daily cap),monetization,must,no,no,explicit fix for original's most-complained-about flow (see recon.md F05)
+Splitwise Pay (bank-linked debit card / money transfer),payments,skip,yes,skip,requires money-transmitter licensing - cannot clone
+Venmo/PayPal direct partner integration,payments,skip,yes,skip,their specific partner deal - not rebuildable 1:1
+Existing Splitwise user network,growth,skip,yes,skip,network effect belongs to the original, not a feature

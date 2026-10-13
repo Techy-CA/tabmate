@@ -1,0 +1,80 @@
+/* Generated from tokens.json. Do not hand-edit values here — edit tokens.json,
+   rerun contrast.py, then regenerate. Components reference these custom
+   properties (or the Tailwind theme keys below), never raw hex. */
+
+:root {
+  /* color */
+  --color-bg: #ffffff;
+  --color-surface: #f6f7f9;
+  --color-border: #e3e6ea;
+  --color-border-input: #8a93a1;
+  --color-text: #1f2430;
+  --color-text-muted: #6b7280;
+  --color-accent: #5b5fef;
+  --color-accent-strong: #4338ca;
+  --color-on-accent: #ffffff;
+  --color-danger: #dc2626;
+  --color-success: #15803d;
+  --color-warning: #b45309;
+
+  /* font */
+  --font-sans: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  --font-display: Manrope, Inter, system-ui, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* type scale: size / line-height / weight */
+  --text-xs: 12px; --leading-xs: 16px; --weight-xs: 500;
+  --text-sm: 14px; --leading-sm: 20px; --weight-sm: 400;
+  --text-base: 16px; --leading-base: 24px; --weight-base: 400;
+  --text-lg: 20px; --leading-lg: 28px; --weight-lg: 600;
+  --text-xl: 28px; --leading-xl: 34px; --weight-xl: 700;
+  --text-display: 40px; --leading-display: 44px; --weight-display: 700;
+
+  /* space (4/8 base) */
+  --space-0: 0px; --space-1: 4px; --space-2: 8px; --space-3: 12px;
+  --space-4: 16px; --space-5: 24px; --space-6: 32px; --space-7: 48px; --space-8: 64px;
+
+  /* radius */
+  --radius-sm: 6px; --radius-md: 10px; --radius-lg: 16px; --radius-pill: 999px;
+
+  /* shadow */
+  --shadow-card: 0 1px 2px rgba(16,24,40,.06), 0 1px 3px rgba(16,24,40,.10);
+  --shadow-pop: 0 12px 32px rgba(16,24,40,.16);
+
+  /* motion */
+  --motion-fast: 120ms;
+  --motion-base: 200ms;
+  --motion-ease: cubic-bezier(.2,.8,.2,1);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --color-bg: #121418;
+    --color-surface: #1a1d23;
+    --color-border: #2a2e37;
+    --color-border-input: #596274;
+    --color-text: #f1f2f4;
+    --color-text-muted: #9aa2ae;
+    --color-accent: #7b7ff5;
+    --color-accent-strong: #9a9df8;
+    --color-on-accent: #121418;
+    --color-danger: #f87171;
+    --color-success: #4ade80;
+    --color-warning: #fb923c;
+  }
+}
+
+:root[data-theme="dark"] {
+  --color-bg: #121418;
+  --color-surface: #1a1d23;
+  --color-border: #2a2e37;
+  --color-border-input: #596274;
+  --color-text: #f1f2f4;
+  --color-text-muted: #9aa2ae;
+  --color-accent: #7b7ff5;
+  --color-accent-strong: #9a9df8;
+  --color-on-accent: #121418;
+  --color-danger: #f87171;
+  --color-success: #4ade80;
+  --color-warning: #fb923c;
+}
