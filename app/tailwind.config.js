@@ -5,7 +5,11 @@ const tokens = require("../replica/design/tokens.json");
 
 /** @type {import('tailwindcss').Config} */
 module.exports = {
-  content: ["./App.tsx", "./app/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}"],
+  content: ["./src/**/*.{ts,tsx}"],
+  // "class" avoids a NativeWind/Expo-web conflict where app.json's
+  // userInterfaceStyle tries to set an explicit color scheme while
+  // NativeWind's default "media" strategy expects only the OS to do that.
+  darkMode: "class",
   presets: [require("nativewind/preset")],
   theme: {
     extend: {
@@ -24,8 +28,13 @@ module.exports = {
         warning: tokens.color.warning,
       },
       fontFamily: {
-        sans: tokens.font.sans.split(",").map((f) => f.trim()),
-        display: tokens.font.display.split(",").map((f) => f.trim()),
+        // RN renders custom fonts as fixed weights, not variable CSS font-weight,
+        // so each weight is its own loaded font family (see src/app/_layout.tsx).
+        sans: ["Inter_400Regular"],
+        "sans-medium": ["Inter_500Medium"],
+        "sans-semibold": ["Inter_600SemiBold"],
+        "sans-bold": ["Inter_700Bold"],
+        display: ["Manrope_700Bold"],
       },
       borderRadius: {
         sm: `${tokens.radius.sm}px`,

@@ -47,7 +47,7 @@ export function Avatar({ id, name, photoUrl, size = "md", showUnreadDot }: Avata
           style={{ width: px, height: px, borderRadius: px, backgroundColor: colourForId(id) }}
           className="items-center justify-center"
         >
-          <Text className="font-sans font-semibold text-on-accent" style={{ fontSize: px * 0.4 }}>
+          <Text className="font-sans-semibold text-on-accent" style={{ fontSize: px * 0.4 }}>
             {initials}
           </Text>
         </View>

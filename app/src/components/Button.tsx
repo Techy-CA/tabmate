@@ -59,7 +59,7 @@ export function Button({
       } focus-visible:ring-2 focus-visible:ring-accent`}
     >
       {loading ? <ActivityIndicator size="small" color={variant === "secondary" || variant === "ghost" ? "#5b5fef" : "#fff"} /> : null}
-      <Text className={`font-sans font-semibold ${textSizeClasses[size]} ${v.text}`}>{label}</Text>
+      <Text className={`font-sans-semibold ${textSizeClasses[size]} ${v.text}`}>{label}</Text>
     </Pressable>
   );
 }

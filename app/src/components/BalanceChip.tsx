@@ -29,7 +29,7 @@ export function BalanceChip({ state, amount, size = "md" }: BalanceChipProps) {
     <View className={`self-start rounded-pill px-2.5 ${size === "sm" ? "py-0.5" : "py-1"} ${c.bg}`}>
       <Text
         accessibilityLabel={label}
-        className={`font-sans font-medium ${size === "sm" ? "text-xs" : "text-sm"} ${c.text}`}
+        className={`font-sans-medium ${size === "sm" ? "text-xs" : "text-sm"} ${c.text}`}
       >
         {label}
       </Text>

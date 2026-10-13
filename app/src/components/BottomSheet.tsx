@@ -37,7 +37,7 @@ export function BottomSheet({ visible, onClose, title, children }: BottomSheetPr
           className="gap-4 rounded-t-lg bg-bg p-5 shadow-pop"
         >
           <View className="flex-row items-center justify-between">
-            <Text className="font-display text-lg font-semibold text-text">{title}</Text>
+            <Text className="font-display text-lg text-text">{title}</Text>
             <Pressable
               onPress={onClose}
               accessibilityRole="button"

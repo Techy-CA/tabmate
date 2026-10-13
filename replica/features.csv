@@ -1,35 +1,35 @@
 feature,area,priority,original,clone,notes
-Sign up with email or Google,onboarding,must,yes,no,
-Log in / log out / password reset,onboarding,must,yes,no,
-Create a group,groups,must,yes,no,
-Join a group via invite link,groups,must,yes,no,
-Add/remove group members,groups,must,yes,no,flat access - no admin role on original
-Add a non-group (one-off) expense,expenses,must,yes,no,
-Add an expense with description/amount/date/category,expenses,must,yes,no,
-Split equally,expenses,must,yes,no,default split
-Split by exact amount,expenses,must,yes,no,
-Split by percentage,expenses,must,yes,no,
-Split by shares,expenses,must,yes,no,
-Split by adjustment,expenses,must,yes,no,
-Edit or delete an expense (any involved member),expenses,must,yes,no,restore deleted expense too
-Per-group and per-friend balance view,balances,must,yes,no,
-Simplify Debts (minimize payment paths),balances,must,yes,no,core differentiator algorithm
-Settle up - record a manual payment,payments,must,yes,no,
-Recurring expenses (weekly/fortnightly/monthly/yearly),expenses,should,yes,no,
-Multi-currency support per expense,expenses,should,yes,no,
-Itemized split from a receipt (manual entry),expenses,should,yes,no,
-Comment on an expense,expenses,should,yes,no,
-Activity feed / push notifications,notifications,should,yes,no,
-In-app settle-up payment (UPI/payment gateway),payments,should,no,no,original uses PayPal/Venmo/Splitwise Pay - we localize instead of copying
-Custom avatars and group cover photos,personalization,should,yes,no,
-Totals screen (group spending over a date range),analytics,should,yes,no,
-Expense search,expenses,should,yes,no,
-Receipt photo OCR + auto-itemization,expenses,could,yes,no,original gates this behind Pro
-Spending-by-category charts,analytics,could,yes,no,original gates this behind Pro
-CSV/JSON export of expense history,data,could,yes,no,original gates this behind Pro
-Offline entry with background sync,expenses,could,yes,no,
-Dark mode,personalization,could,no,no,not confirmed on original - our own UX upgrade
-Unlimited free expense entry (no daily cap),monetization,must,no,no,explicit fix for original's most-complained-about flow (see recon.md F05)
+Sign up with email or Google,onboarding,must,yes,partial,S02 built and verified; Google OAuth is a fake stub pending replica-backend
+Log in / log out / password reset,onboarding,must,yes,partial,S03 built, not click-tested this session; password reset not wired
+Create a group,groups,must,yes,partial,built, not click-tested this session
+Join a group via invite link,groups,must,yes,partial,built, not click-tested this session
+Add/remove group members,groups,must,yes,partial,built in S12, not click-tested this session; flat access - no admin role on original
+Add a non-group (one-off) expense,expenses,must,yes,partial,built via friend-picker in S06, not click-tested this session
+Add an expense with description/amount/date/category,expenses,must,yes,partial,built, not click-tested this session
+Split equally,expenses,must,yes,partial,built, not click-tested this session
+Split by exact amount,expenses,must,yes,partial,built, not click-tested this session
+Split by percentage,expenses,must,yes,partial,built, not click-tested this session
+Split by shares,expenses,must,yes,partial,built, not click-tested this session
+Split by adjustment,expenses,must,yes,partial,built, not click-tested this session
+Edit or delete an expense (any involved member),expenses,must,yes,partial,soft-delete + restore built in S08, not click-tested; no edit UI yet (create-only)
+Per-group and per-friend balance view,balances,must,yes,partial,built, not click-tested this session
+Simplify Debts (minimize payment paths),balances,must,yes,partial,greedy algorithm implemented in balances.ts, not click-tested this session
+Settle up - record a manual payment,payments,must,yes,partial,built, not click-tested this session
+Recurring expenses (weekly/fortnightly/monthly/yearly),expenses,should,yes,partial,repeat picker in S06 saves the field; no cron/scheduled posting yet (that's replica-backend)
+Multi-currency support per expense,expenses,should,yes,partial,data model supports it; UI is INR-only for now
+Itemized split from a receipt (manual entry),expenses,should,yes,no,selectable in UI but computeShares returns zero owed - needs the item-assignment screen before use
+Comment on an expense,expenses,should,yes,partial,built in S08, not click-tested this session
+Activity feed / push notifications,notifications,should,yes,partial,feed built (S11) and trigger-equivalent logging wired; push notifications not implemented
+In-app settle-up payment (UPI/payment gateway),payments,should,no,partial,S09 has a Razorpay-link option in the UI with no real Razorpay call yet
+Custom avatars and group cover photos,personalization,should,yes,no,deterministic initials-avatar only; photo upload not built
+Totals screen (group spending over a date range),analytics,should,yes,partial,S14 built with per-member paid/owed; no date-range filter yet
+Expense search,expenses,should,yes,no,not built
+Receipt photo OCR + auto-itemization,expenses,could,yes,no,not built
+Spending-by-category charts,analytics,could,yes,no,not built
+CSV/JSON export of expense history,data,could,yes,no,not built
+Offline entry with background sync,expenses,could,yes,no,not built
+Dark mode,personalization,could,no,no,tokens.css has a dark palette but the app doesn't switch themes yet
+Unlimited free expense entry (no daily cap),monetization,must,no,yes,no cap exists anywhere in the app - this is done by omission, verified by reading the code
 Splitwise Pay (bank-linked debit card / money transfer),payments,skip,yes,skip,requires money-transmitter licensing - cannot clone
 Venmo/PayPal direct partner integration,payments,skip,yes,skip,their specific partner deal - not rebuildable 1:1
 Existing Splitwise user network,growth,skip,yes,skip,network effect belongs to the original, not a feature

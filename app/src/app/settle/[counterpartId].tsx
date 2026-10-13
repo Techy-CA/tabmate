@@ -1,0 +1,102 @@
+import { Feather } from "@expo/vector-icons";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { useState } from "react";
+import { Pressable, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+
+import { Avatar } from "@/components/Avatar";
+import { Button } from "@/components/Button";
+import { Input } from "@/components/Input";
+import { formatCents } from "@/lib/data/balances";
+import { useData } from "@/lib/data/store";
+import type { PaymentMethod } from "@/lib/data/types";
+
+// S09 — Settle up
+export default function SettleUp() {
+  const { counterpartId, groupId } = useLocalSearchParams<{ counterpartId: string; groupId?: string }>();
+  const router = useRouter();
+  const { getUser, getFriendBalance, getGroupBalances, currentUser, createPayment } = useData();
+
+  const counterpart = getUser(counterpartId);
+  const groupBalance = groupId ? getGroupBalances(groupId).find((b) => b.userId === currentUser.id) : undefined;
+  const suggestedCents = Math.abs(groupBalance ? groupBalance.balanceCents : getFriendBalance(counterpartId));
+
+  const [amountText, setAmountText] = useState((suggestedCents / 100).toFixed(2));
+  const [method, setMethod] = useState<PaymentMethod>("manual");
+  const [done, setDone] = useState(false);
+
+  if (!counterpart) return null;
+  const amountCents = Math.round((parseFloat(amountText || "0") || 0) * 100);
+
+  const confirm = () => {
+    createPayment({ groupId, toUserId: counterpart.id, amountCents, currencyCode: "INR", method });
+    setDone(true);
+  };
+
+  if (done) {
+    return (
+      <SafeAreaView className="flex-1 items-center justify-center gap-4 bg-bg p-6">
+        <Feather name="check-circle" size={48} color="#15803d" />
+        <Text className="font-display text-lg text-text">
+          {method === "manual" ? "Payment recorded" : "Payment link sent"}
+        </Text>
+        <Text className="text-center font-sans text-sm text-muted">
+          {formatCents(amountCents, "INR")} with {counterpart.name}
+          {method === "razorpay_link" ? " — they'll get a notification to pay via UPI." : "."}
+        </Text>
+        <Button label="Done" onPress={() => router.back()} />
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView className="flex-1 bg-bg">
+      <View className="flex-row items-center gap-3 border-b border-border p-4">
+        <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={() => router.back()}>
+          <Feather name="x" size={22} color="#1f2430" />
+        </Pressable>
+        <Text className="font-display text-lg text-text">Settle up</Text>
+      </View>
+
+      <View className="gap-6 p-6">
+        <View className="items-center gap-2">
+          <Avatar id={counterpart.id} name={counterpart.name} size="lg" />
+          <Text className="font-sans text-sm text-muted">You pay</Text>
+          <Text className="font-sans-semibold text-base text-text">{counterpart.name}</Text>
+        </View>
+
+        <Input label="Amount" prefix="₹" keyboardType="decimal-pad" value={amountText} onChangeText={setAmountText} />
+
+        <View className="gap-2">
+          <Text className="font-sans-semibold text-sm text-text">How are you paying?</Text>
+          <Pressable
+            onPress={() => setMethod("manual")}
+            accessibilityRole="radio"
+            accessibilityState={{ checked: method === "manual" }}
+            className={`flex-row items-center justify-between rounded-lg border p-3 ${method === "manual" ? "border-accent" : "border-border"}`}
+          >
+            <View>
+              <Text className="font-sans-medium text-sm text-text">Record as paid</Text>
+              <Text className="font-sans text-xs text-muted">Cash, bank transfer — outside the app</Text>
+            </View>
+            {method === "manual" ? <Feather name="check" size={18} color="#5b5fef" /> : null}
+          </Pressable>
+          <Pressable
+            onPress={() => setMethod("razorpay_link")}
+            accessibilityRole="radio"
+            accessibilityState={{ checked: method === "razorpay_link" }}
+            className={`flex-row items-center justify-between rounded-lg border p-3 ${method === "razorpay_link" ? "border-accent" : "border-border"}`}
+          >
+            <View>
+              <Text className="font-sans-medium text-sm text-text">Pay via UPI</Text>
+              <Text className="font-sans text-xs text-muted">Sends a payment link — no fees to request</Text>
+            </View>
+            {method === "razorpay_link" ? <Feather name="check" size={18} color="#5b5fef" /> : null}
+          </Pressable>
+        </View>
+
+        <Button label="Confirm" size="lg" disabled={amountCents <= 0} onPress={confirm} />
+      </View>
+    </SafeAreaView>
+  );
+}

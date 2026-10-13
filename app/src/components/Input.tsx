@@ -7,20 +7,28 @@ export type InputProps = TextInputProps & {
   /** Fixed prefix shown inside the field (e.g. "₹") — never a placeholder,
    * so it can never be mistaken for a typed value. */
   prefix?: string;
+  /** Keep the label as the accessible name but don't render it visually —
+   * for compact repeated rows (e.g. one amount input per person) where the
+   * row already shows who it's for. */
+  hideLabel?: boolean;
 };
 
 /**
  * Text / amount input primitive. Amount fields pass prefix="₹" and
  * inputMode="decimal" from the call site rather than guessing currency here.
  */
-export function Input({ label, error, prefix, ...rest }: InputProps) {
+export function Input({ label, error, prefix, hideLabel, ...rest }: InputProps) {
   const [focused, setFocused] = useState(false);
 
   const borderClass = error ? "border-danger" : focused ? "border-accent" : "border-border-input";
 
   return (
     <View className="gap-1.5">
-      <Text className="font-sans text-xs font-medium text-muted" nativeID={`${label}-label`}>
+      <Text
+        className="font-sans-medium text-xs text-muted"
+        nativeID={`${label}-label`}
+        style={hideLabel ? { position: "absolute", width: 1, height: 1, opacity: 0 } : undefined}
+      >
         {label}
       </Text>
       <View
