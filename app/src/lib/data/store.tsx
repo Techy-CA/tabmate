@@ -226,11 +226,29 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   );
 
   const getTotalBalance = useCallback(() => {
-    return listMyGroups().reduce((sum, g) => {
+    const groupTotal = listMyGroups().reduce((sum, g) => {
       const mine = getGroupBalances(g.id).find((b) => b.userId === CURRENT_USER_ID);
       return sum + (mine?.balanceCents ?? 0);
     }, 0);
-  }, [listMyGroups, getGroupBalances]);
+
+    // Non-group (friend-only) expenses and payments never belong to any
+    // group, so they're invisible to the loop above — without this, a
+    // user's one-off expenses with friends silently vanish from their
+    // account-wide balance.
+    const nonGroupExpenseTotal = expenses.reduce((sum, e) => {
+      if (e.groupId || e.deletedAt) return sum;
+      const mine = e.shares.find((s) => s.userId === CURRENT_USER_ID);
+      return sum + (mine ? mine.paidCents - mine.owedCents : 0);
+    }, 0);
+    const nonGroupPaymentTotal = payments.reduce((sum, p) => {
+      if (p.groupId || p.status !== "confirmed") return sum;
+      if (p.fromUserId === CURRENT_USER_ID) return sum + p.amountCents;
+      if (p.toUserId === CURRENT_USER_ID) return sum - p.amountCents;
+      return sum;
+    }, 0);
+
+    return groupTotal + nonGroupExpenseTotal + nonGroupPaymentTotal;
+  }, [listMyGroups, getGroupBalances, expenses, payments]);
 
   const createGroup = useCallback(
     (name: string, memberIds: string[]) => {

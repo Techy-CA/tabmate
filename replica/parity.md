@@ -12,8 +12,17 @@ the same kind of gap: Google OAuth sign-up and password reset are fake
 stubs, because both genuinely require a real backend (`/replica-backend`),
 not more click-testing. Every must-have that *could* be verified without
 external credentials now has been — up from 6/16 at the first pass of this
-report to 14/16 now, after two `/replica-test` rounds that found and fixed
-8 real bugs (see `replica/bugs.md`).
+report to 14/16 now, after three `/replica-test` rounds that found and
+fixed 9 real bugs (see `replica/bugs.md`), including one (BUG-009, Account's
+"Overall balance" silently excluding non-group expenses) found in this
+round by deliberately checking a displayed number against a hand
+calculation, not by a crash.
+
+Also note: **no `.apk` exists yet.** Every verification in this report ran
+through the Expo web preview. Producing an installable APK needs EAS Build
+and the user's own Expo account — offered and declined this session in
+favor of continuing feature verification. See build-log.md for the exact
+command once the user is ready.
 
 ## By area, weakest first
 

@@ -12,17 +12,17 @@ Split by percentage,expenses,must,yes,yes,"verified: 60/40 split hand-calculated
 Split by shares,expenses,must,yes,yes,"verified: 1/2/1 share ratio hand-calculated and confirmed exact (manual + e2e)"
 Split by adjustment,expenses,must,yes,yes,"verified: +adjustment split across 3 participants hand-calculated and confirmed exact, including the equal-portion-across-everyone-not-just-the-adjusted-person behavior (manual + e2e)"
 Edit or delete an expense (any involved member),expenses,must,yes,yes,"verified: built the missing edit UI (reopens as an exact-amounts split prefilled from current shares), and fixed BUG-008 (Alert.alert confirm was a silent no-op on web) so delete/restore actually works; both confirmed by e2e"
-Per-group and per-friend balance view,balances,must,yes,yes,verified: all 4 seed friend balances hand-calculated and matched exactly after fixing BUG-003 (pairwise math)
+Per-group and per-friend balance view,balances,must,yes,yes,"verified: all 4 seed friend balances hand-calculated and matched exactly after fixing BUG-003 (pairwise math); Account's account-wide ""Overall balance"" also fixed (BUG-009 - was silently excluding non-group expenses) and verified exact"
 Simplify Debts (minimize payment paths),balances,must,yes,yes,"verified: greedy algorithm confirmed correct by hand, including the reroute-after-partial-settle case and the reroute-after-member-removal case"
 Settle up - record a manual payment,payments,must,yes,yes,"verified both directions (BUG-005 fix: ""you pay"" and ""record that you were paid"")"
 Recurring expenses (weekly/fortnightly/monthly/yearly),expenses,should,yes,partial,"repeat picker in S06 saves the field, ""· repeats"" indicator confirmed visually; no cron/scheduled posting yet (that's replica-backend)"
 Multi-currency support per expense,expenses,should,yes,partial,data model supports it; UI is INR-only for now
 Itemized split from a receipt (manual entry),expenses,should,yes,no,correctly NOT exposed in the split-type picker yet - computeShares would return zero owed; needs the item-assignment screen first
 Comment on an expense,expenses,should,yes,yes,"verified: add-comment tested manually, appears instantly and clears the input"
-Activity feed / push notifications,notifications,should,yes,partial,"feed built (S11) and trigger-equivalent logging wired, not click-tested this session; push notifications not implemented"
+Activity feed / push notifications,notifications,should,yes,partial,"verified: feed renders correctly, newest-first, with correct action text for every event type (manual); push notifications still not implemented"
 In-app settle-up payment (UPI/payment gateway),payments,should,no,partial,S09 UI verified (manual direction logic correct); no real Razorpay call yet
 Custom avatars and group cover photos,personalization,should,yes,no,deterministic initials-avatar only; photo upload not built
-Totals screen (group spending over a date range),analytics,should,yes,partial,"S14 built with per-member paid/owed, not click-tested this session; no date-range filter yet"
+Totals screen (group spending over a date range),analytics,should,yes,partial,"verified: per-member paid/owed figures hand-calculated and confirmed exact (manual); still no date-range filter"
 Expense search,expenses,should,yes,no,not built
 Receipt photo OCR + auto-itemization,expenses,could,yes,no,not built
 Spending-by-category charts,analytics,could,yes,no,not built

@@ -5,16 +5,20 @@ Stack: Expo + Expo Router + NativeWind, fake in-memory data layer in
 architecture.md, so replica-backend can swap the implementation without
 touching screens).
 
-**2026-10-14, pass 2 (`/replica-test`, two sessions)**: click-tested nearly
-every must-have flow by hand against the running web preview, found and
-fixed **8 real bugs** (full repro and root cause in `replica/bugs.md`), then
-wrote Playwright regression specs for all of them — **21/21 passing**. Also
-ran `npx tsc --noEmit` and `npx expo lint` for the first time this project —
+**2026-10-14, pass 2 (`/replica-test`, three sessions)**: click-tested
+nearly every flow by hand against the running web preview, found and fixed
+**9 real bugs** (full repro and root cause in `replica/bugs.md`), then wrote
+Playwright regression specs for all of them — **22/22 passing**. Also ran
+`npx tsc --noEmit` and `npx expo lint` for the first time this project —
 both clean now, but they'd been skipped during the initial build, which is
 exactly how BUG-002 (a field-name typo producing `NaN`) shipped in the first
 place. The e2e suite itself caught two bugs (BUG-002, BUG-006) that the
 manual click-through missed — automated testing earning its keep. Also built
-the one genuinely missing piece of code: the expense-edit screen.
+the one genuinely missing piece of code: the expense-edit screen. User asked
+directly whether an actual `.apk` exists yet — it doesn't; everything so far
+has run through `expo start --web` for fast iteration. Building one needs
+EAS Build and the user's own Expo account, which wasn't available this
+session (see "What's next").
 
 | screen | status | notes |
 | --- | --- | --- |
@@ -27,10 +31,10 @@ the one genuinely missing piece of code: the expense-edit screen.
 | S08 Expense detail | done, verified | comments, soft delete/restore, edit entry point — delete confirm fixed (BUG-008) and e2e-tested |
 | S09 Settle up | done, verified | both directions tested (BUG-005 fix) |
 | S10 Friend detail | done, verified | pairwise balances confirmed correct (BUG-003) |
-| S11 Activity feed | built, not verified | queued for next session |
+| S11 Activity feed | done, verified | renders correctly, newest-first, correct action text per event type |
 | S12 Group settings | done, verified | rename, remove member (balance-safe), invite code (BUG-007 fix), Simplify Debts toggle, leave group (BUG-008 fix) |
-| S13 Account settings | built, not verified | sign out code-reviewed, not clicked |
-| S14 Totals | built, not verified | queued for next session |
+| S13 Account settings | done, verified | "Overall balance" fixed (BUG-009) and confirmed exact; sign out works |
+| S14 Totals | done, verified | per-member paid/owed figures hand-calculated and confirmed exact |
 | S17 Join group | done, verified | happy path, already-member guard, invalid-code negative case |
 | S18 Pro paywall | stub only | honest "coming soon" card, does not gate any must-have flow |
 | S15 Charts | **not built** | could-have, no screen exists |
@@ -55,9 +59,11 @@ See `replica/bugs.md` for full repro steps. Summary:
   was generated but never shown to the user.
 - **BUG-008** (S2): `Alert.alert()` confirmations (delete expense, leave
   group) were a silent no-op on web — no error, no dialog, nothing happened.
+- **BUG-009** (S2): Account's "Overall balance" only summed group balances,
+  silently excluding non-group (friend-only) expenses and payments.
 
-All eight are fixed, verified by hand and by the e2e suite, with regression
-coverage in `app/e2e/` (21/21 passing). Zero open S1 or S2 bugs.
+All nine are fixed, verified by hand and by the e2e suite, with regression
+coverage in `app/e2e/` (22/22 passing). Zero open S1 or S2 bugs.
 
 ## Known gaps
 
@@ -75,14 +81,22 @@ coverage in `app/e2e/` (21/21 passing). Zero open S1 or S2 bugs.
    original percentage/shares/adjustment *inputs* aren't reconstructable
    from a stored `owedCents` total alone. This is a deliberate, documented
    simplification (see the comment in `expense/add.tsx`), not a bug.
-5. S11 (activity feed), S13 (account settings), S14 (totals) weren't
-   click-tested this pass — queued for the next `/replica-test` session.
-6. No accessibility (axe) scan run yet.
+5. No accessibility (axe) scan run yet.
+6. No actual `.apk` has been built — everything has run through
+   `expo start --web`. Building one needs EAS Build (`eas build -p android`)
+   and the user's own Expo account (`eas login`); this session doesn't have
+   those credentials and won't create an account or log in on the user's
+   behalf. Local Java 17 is present, but there's no Android SDK installed in
+   this environment, so EAS's cloud build is the realistic path once the
+   user is ready — offered and declined for now in favor of more testing.
 
 ## What's next
 
 `/replica-backend` to wire up real Supabase Auth (closing the last 2
-must-haves), Postgres + RLS from `schema.sql`, and the Razorpay webhook —
-or finish the remaining S11/S13/S14 click-testing first if staying in
-`/replica-test` a while longer. Parity is at **75.0/100, 14/16 must-haves,
-zero open S1/S2** — the closest this project has been to shippable.
+must-haves), Postgres + RLS from `schema.sql`, and the Razorpay webhook.
+Parity is at **75.0/100, 14/16 must-haves, zero open S1/S2** — every screen
+in the recon map except charts/OCR (S15/S16, both explicitly out of scope
+for now) has been built and click-tested at least once. When the user is
+ready for an installable APK: they log into Expo (`eas login`) or hand over
+an `EXPO_TOKEN`, then `eas build -p android --profile preview` produces a
+downloadable `.apk`.

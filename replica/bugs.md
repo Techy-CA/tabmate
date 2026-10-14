@@ -240,3 +240,27 @@ Status: fixed — added `src/lib/confirm.ts`'s `confirmAction()`, which uses
 sites (delete-expense, leave-group) now use it. Verified live and by e2e
 (`edit-expense.spec.ts`'s delete/restore test, which failed before this fix
 and passes after it).
+
+### BUG-009: "Overall balance" on Account silently excluded non-group expenses
+
+- Severity: S2
+- Flow / case: any user with a non-group (friend-only) expense or payment
+- Screen: S13
+- Build: post-BUG-001..008 fixes
+
+Steps
+1. Have at least one non-group expense (e.g. a one-off lunch split with a
+   friend who isn't in any shared group).
+2. Open Account and look at "Overall balance."
+
+Expected: the true net position across everything — groups and
+friend-only expenses alike.
+Actual: `getTotalBalance()` only summed `listMyGroups()`'s group balances;
+non-group expenses and payments (which belong to no group at all) were
+invisible to that loop. With the seed data's ₹800 non-group lunch with
+Nisha Rao, the screen showed ₹33,533.33 instead of the correct ₹32,733.33 —
+found by hand-checking the number against the per-screen balances, not by a
+crash or visible error.
+Status: fixed — `getTotalBalance()` now also sums the current user's net
+position across every non-group expense and confirmed non-group payment.
+Verified by hand and covered by `account.spec.ts`.

@@ -8,8 +8,8 @@ state. Mid-test navigation uses in-app clicks or `page.goBack()` (browser
 history), never `page.goto()`, since a hard reload wipes in-memory state
 created earlier in the same test.
 
-**8 real bugs found and fixed across two passes** — see `replica/bugs.md`.
-Automated specs in `app/e2e/` (21 tests, all passing) cover regressions for
+**9 real bugs found and fixed across three passes** — see `replica/bugs.md`.
+Automated specs in `app/e2e/` (22 tests, all passing) cover regressions for
 all of them, plus the full must-have split-type and group-lifecycle matrix.
 
 | case | flow | type | steps | expected | auto | result |
@@ -41,15 +41,17 @@ all of them, plus the full must-have split-type and group-lifecycle matrix.
 | BUG-004 | deep link survives navigation | edge | load `/expense/add?groupId=...` directly, Cancel | lands on group screen, no crash | e2e | PASS |
 | a11y-labels | form inputs are labeled | happy | `getByLabel` on every field | accessible name matches visible label | e2e | PASS (BUG-006 regression) |
 | a11y-full | keyboard + screen reader pass | edge | tab through, axe scan | zero violations | e2e (axe) | not yet run — next session |
-| S11 | activity feed reflects actions | happy | add expense, record payment | both appear, newest first | manual | not yet run — next session |
+| S11 | activity feed reflects actions | happy | view seeded activity | renders correctly, newest-first, correct text per event type | manual | PASS |
+| S13 | account overall balance | happy | check "Overall balance" against hand-calculated total | includes non-group expenses, not just group balances | manual + e2e | PASS (BUG-009 regression) |
+| S14 | totals per-member figures | happy | open Totals, check paid/share per member | hand-calculated and confirmed exact | manual | PASS |
 
 ## e2e suite summary
 
-`npx playwright test` — **21/21 passing**, `app/e2e/`: `f01-core-loop.spec.ts`
+`npx playwright test` — **22/22 passing**, `app/e2e/`: `f01-core-loop.spec.ts`
 (5), `f02-settle-up.spec.ts` (2), `f04-groups.spec.ts` (4),
 `friend-balance.spec.ts` (1), `navigation.spec.ts` (2),
 `non-group-expense.spec.ts` (2), `split-types.spec.ts` (3),
-`edit-expense.spec.ts` (2).
+`edit-expense.spec.ts` (2), `account.spec.ts` (1).
 
 `npx tsc --noEmit` and `npx expo lint` — both clean.
 
@@ -57,7 +59,9 @@ all of them, plus the full must-have split-type and group-lifecycle matrix.
 
 - The 2 remaining must-haves (Google OAuth, password reset) genuinely need
   `/replica-backend` — not more click-testing.
-- S11 (activity feed), S13 (account settings), S14 (totals date-range
-  filter) weren't click-tested this pass.
+- Totals' date-range filter and Activity's push notifications are still
+  not built (the screens themselves are verified correct for what they do
+  have).
 - The axe accessibility scan hasn't been run yet.
 - Receipt OCR (S16) and charts (S15) remain unbuilt, so untestable.
+- No actual `.apk` has been built yet — see build-log.md.
