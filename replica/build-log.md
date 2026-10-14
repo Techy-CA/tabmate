@@ -93,7 +93,9 @@ coverage in `app/e2e/` (22/22 passing). Zero open S1 or S2 bugs.
 ## What's next
 
 `/replica-backend` to wire up real Supabase Auth (closing the last 2
-must-haves), Postgres + RLS from `schema.sql`, and the Razorpay webhook.
+must-haves) and Postgres + RLS from `schema.sql`. No payment-gateway
+integration to wire up — settle-up is a manual record only, by product
+decision (see `architecture.md`).
 Parity is at **75.0/100, 14/16 must-haves, zero open S1/S2** — every screen
 in the recon map except charts/OCR (S15/S16, both explicitly out of scope
 for now) has been built and click-tested at least once. When the user is

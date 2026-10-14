@@ -20,7 +20,7 @@ Multi-currency support per expense,expenses,should,yes,partial,data model suppor
 Itemized split from a receipt (manual entry),expenses,should,yes,no,correctly NOT exposed in the split-type picker yet - computeShares would return zero owed; needs the item-assignment screen first
 Comment on an expense,expenses,should,yes,yes,"verified: add-comment tested manually, appears instantly and clears the input"
 Activity feed / push notifications,notifications,should,yes,partial,"verified: feed renders correctly, newest-first, with correct action text for every event type (manual); push notifications still not implemented"
-In-app settle-up payment (UPI/payment gateway),payments,should,no,partial,S09 UI verified (manual direction logic correct); no real Razorpay call yet
+In-app settle-up payment (UPI/payment gateway),payments,out-of-scope,no,n/a,explicit product decision: Tabmate is an expense tracker between friends, not a payment processor — settle-up is always a manual record of cash/bank/UPI done outside the app
 Custom avatars and group cover photos,personalization,should,yes,no,deterministic initials-avatar only; photo upload not built
 Totals screen (group spending over a date range),analytics,should,yes,partial,"verified: per-member paid/owed figures hand-calculated and confirmed exact (manual); still no date-range filter"
 Expense search,expenses,should,yes,no,not built

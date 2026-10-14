@@ -1,4 +1,4 @@
--- Tabmate (working name) — initial schema
+-- Tabmate — initial schema
 -- Postgres on Supabase. Money is always integer minor units (cents/paise) + a currency code.
 -- All timestamps are timestamptz in UTC. RLS is enabled on every table; policies noted per-table.
 
@@ -146,10 +146,12 @@ create table expense_comments (
 create index on expense_comments (expense_id, created_at);
 
 -- ============================================================
--- payments (settle up)
+-- payments (settle up) — Tabmate only ever records a payment made outside
+-- the app (cash, bank transfer, UPI the user did themselves). It's an
+-- expense tracker between friends, not a payment processor: no gateway
+-- integration, no payment method, no async pending/failed state.
 -- ============================================================
-create type payment_method as enum ('manual','razorpay_link');
-create type payment_status as enum ('pending','confirmed','failed','cancelled');
+create type payment_status as enum ('confirmed','cancelled');
 
 create table payments (
   id uuid primary key default gen_random_uuid(),
@@ -158,11 +160,8 @@ create table payments (
   to_user_id uuid not null references users(id) on delete restrict,
   amount_cents bigint not null check (amount_cents > 0),
   currency_code char(3) not null,
-  method payment_method not null default 'manual',
-  status payment_status not null default 'confirmed', -- manual records are confirmed on insert
-  razorpay_payment_link_id text unique,
+  status payment_status not null default 'confirmed',
   created_at timestamptz not null default now(),
-  confirmed_at timestamptz,
   constraint different_people check (from_user_id <> to_user_id)
 );
 create index on payments (from_user_id);

@@ -9,10 +9,12 @@ import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
 import { formatCents } from "@/lib/data/balances";
 import { useData } from "@/lib/data/store";
-import type { PaymentMethod } from "@/lib/data/types";
 import { goBack } from "@/lib/nav";
 
-// S09 — Settle up
+// S09 — Settle up. Tabmate only ever records a payment made outside the
+// app (cash, bank transfer, UPI the user did themselves) — it's an expense
+// tracker between friends, not a payment processor, so there's no
+// in-app money movement to pick a method for.
 export default function SettleUp() {
   const { counterpartId, groupId } = useLocalSearchParams<{ counterpartId: string; groupId?: string }>();
   const router = useRouter();
@@ -28,7 +30,6 @@ export default function SettleUp() {
   const suggestedCents = Math.abs(relevantBalanceCents);
 
   const [amountText, setAmountText] = useState((suggestedCents / 100).toFixed(2));
-  const [method, setMethod] = useState<PaymentMethod>("manual");
   const [done, setDone] = useState(false);
 
   if (!counterpart) return null;
@@ -43,7 +44,6 @@ export default function SettleUp() {
       toUserId: iOwe ? counterpart.id : currentUser.id,
       amountCents,
       currencyCode: "INR",
-      method: iOwe ? method : "manual",
     });
     setDone(true);
   };
@@ -52,12 +52,9 @@ export default function SettleUp() {
     return (
       <SafeAreaView className="flex-1 items-center justify-center gap-4 bg-bg p-6">
         <Feather name="check-circle" size={48} color="#15803d" />
-        <Text className="font-display text-lg text-text">
-          {!iOwe ? "All squared away" : method === "manual" ? "All squared away" : "Payment link sent"}
-        </Text>
+        <Text className="font-display text-lg text-text">All squared away</Text>
         <Text className="text-center font-sans text-sm text-muted">
-          {formatCents(amountCents, "INR")} with {counterpart.name}
-          {iOwe && method === "razorpay_link" ? " — they'll get a notification to pay via UPI." : "."}
+          {formatCents(amountCents, "INR")} with {counterpart.name}.
         </Text>
         <Button label="Done" onPress={() => goBack(router, fallbackHref)} />
       </SafeAreaView>
@@ -76,46 +73,17 @@ export default function SettleUp() {
       <View className="gap-6 p-6">
         <View className="items-center gap-2">
           <Avatar id={counterpart.id} name={counterpart.name} size="lg" />
-          <Text className="font-sans text-sm text-muted">{iOwe ? "You pay" : "Record that you were paid by"}</Text>
+          <Text className="font-sans text-sm text-muted">{iOwe ? "You paid" : "Record that you were paid by"}</Text>
           <Text className="font-sans-semibold text-base text-text">{counterpart.name}</Text>
         </View>
 
         <Input label="Amount" prefix="₹" keyboardType="decimal-pad" value={amountText} onChangeText={setAmountText} />
 
-        {iOwe ? (
-          <View className="gap-2">
-            <Text className="font-sans-semibold text-sm text-text">How are you paying?</Text>
-            <Pressable
-              onPress={() => setMethod("manual")}
-              accessibilityRole="radio"
-              accessibilityState={{ checked: method === "manual" }}
-              className={`flex-row items-center justify-between rounded-lg border p-3 ${method === "manual" ? "border-accent" : "border-border"}`}
-            >
-              <View>
-                <Text className="font-sans-medium text-sm text-text">Record as paid</Text>
-                <Text className="font-sans text-xs text-muted">Cash, bank transfer — outside the app</Text>
-              </View>
-              {method === "manual" ? <Feather name="check" size={18} color="#5b5fef" /> : null}
-            </Pressable>
-            <Pressable
-              onPress={() => setMethod("razorpay_link")}
-              accessibilityRole="radio"
-              accessibilityState={{ checked: method === "razorpay_link" }}
-              className={`flex-row items-center justify-between rounded-lg border p-3 ${method === "razorpay_link" ? "border-accent" : "border-border"}`}
-            >
-              <View>
-                <Text className="font-sans-medium text-sm text-text">Pay via UPI</Text>
-                <Text className="font-sans text-xs text-muted">Sends a payment link — no fees to request</Text>
-              </View>
-              {method === "razorpay_link" ? <Feather name="check" size={18} color="#5b5fef" /> : null}
-            </Pressable>
-          </View>
-        ) : (
-          <Text className="font-sans text-sm text-muted">
-            This just logs that {counterpart.name} paid you outside the app (cash, bank transfer) —
-            it doesn&apos;t move any money.
-          </Text>
-        )}
+        <Text className="font-sans text-sm text-muted">
+          {iOwe
+            ? `This just logs that you paid ${counterpart.name} outside the app (cash, bank transfer, UPI) — Tabmate doesn't move any money itself.`
+            : `This just logs that ${counterpart.name} paid you outside the app — Tabmate doesn't move any money itself.`}
+        </Text>
 
         <Button label="Confirm" size="lg" disabled={amountCents <= 0} onPress={confirm} />
       </View>

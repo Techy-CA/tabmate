@@ -71,13 +71,16 @@ have credentials for.
 - **Splitwise Pay** (bank-linked debit card) — requires money-transmitter
   licensing, cannot clone.
 - **Venmo/PayPal direct partner integration** — their specific partner deal.
-  We built our own UPI/Razorpay-link equivalent instead (see "yours" below).
+  Explicit product decision: Tabmate never moves money itself, in-app or
+  via a partner — settle-up is always a manual record (see "yours" below).
 - **Existing Splitwise user network** — a network effect, not a feature.
 
 ## Yours, not in the original (not scored, but real work)
 
-- **In-app settle-up payment via UPI/Razorpay** — our own localized
-  equivalent of the original's PayPal/Venmo/Splitwise Pay.
+- **Settle up as a pure manual record, no payment gateway at all** — the
+  original offers PayPal/Venmo/Splitwise Pay as in-app payment options;
+  Tabmate deliberately has none, by product decision (expense tracker
+  between friends and family, not a payment processor).
 - **Dark mode** — tokens exist, not yet wired into theme switching.
 - **Unlimited free expense entry** — the fix for Splitwise's
   most-complained-about behavior (recon.md F05). Verified by reading the

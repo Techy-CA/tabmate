@@ -168,7 +168,6 @@ export const seedPayments: Payment[] = [
     toUserId: CURRENT_USER_ID,
     amountCents: 500000,
     currencyCode: "INR",
-    method: "manual",
     status: "confirmed",
     createdAt: "2026-10-09T08:00:00Z",
   },

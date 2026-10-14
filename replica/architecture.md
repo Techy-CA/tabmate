@@ -1,4 +1,4 @@
-# Architecture: Tabmate (working name) — a rebuild of Splitwise's core features
+# Architecture: Tabmate — a rebuild of Splitwise's core features
 
 Ships as an Android APK first (per the brief), backed by a managed Postgres backend that a future
 web or iOS client can reuse without changes.
@@ -13,8 +13,8 @@ web or iOS client can reuse without changes.
 | ORM / migrations | Drizzle ORM | schema-as-TypeScript that matches `schema.sql` 1:1, typed query results in the Edge Functions, plain SQL migrations (no magic) |
 | auth | Supabase Auth (email/password + Google OAuth) | matches the original's two sign-up paths (recon S02), issues the JWT that Postgres RLS reads directly — no separate auth server |
 | access control | Postgres Row Level Security | the flat "any group member can edit/delete" model (recon source #9) is naturally a row-security policy, not app code scattered across routes |
-| payments (settle up) | Razorpay Payment Links | UPI-first, matches India-market intent; a payment link routes money straight to the requester's own bank account — we never hold funds, so this stays a standard payment-gateway integration, not a money-transmitter license (see recon's "out of scope: Splitwise Pay") |
-| payments (optional Pro tier, later) | Stripe Checkout + Billing | only needed if/when a paid tier ships (could-have, milestone 4) — kept separate from settle-up payments |
+| payments (settle up) | none — manual record only | explicit product decision: Tabmate is an expense tracker between friends and family, not a payment processor. "Settle up" always means "log that cash/bank transfer/UPI happened outside the app," never an in-app money transfer. No PSP integration, no money-transmitter exposure, nothing to reconcile. |
+| payments (optional Pro tier, later) | Stripe Checkout + Billing | only needed if/when a paid tier ships (could-have, milestone 4) — unrelated to settle-up: this is the user paying *us* for a subscription, not paying a friend |
 | email | Resend | invite emails, recurring-expense reminders; generous free tier |
 | jobs / cron | Supabase Edge Functions + `pg_cron` | posts due recurring expenses, expires stale invite codes; no separate worker process to host |
 | files | Supabase Storage | receipt photos, avatars, group cover photos |
@@ -67,13 +67,13 @@ a Postgres RPC function or an Edge Function instead.
 | table read `expense_comments` | list/insert comments | group member or expense party | body | comment row | S08 |
 | `rpc get_group_balances(group_id)` | raw net balance per member (sum paid − sum owed) | group member | group_id | [{user_id, balance_cents}] | S05 |
 | `rpc get_simplified_transfers(group_id)` (Edge Fn) | greedy min-transfer-count algorithm over the balances, per currency | group member | group_id | [{from, to, amount, currency}] | S05, "Simplify Debts" |
-| `rpc create_payment(payload)` | records a manual payment, or creates a Razorpay payment link for `method=razorpay_link` | from_user or group member | to_user, amount, method | payment row (+ link URL) | F02 |
-| webhook IN `POST /functions/v1/webhooks/razorpay` | marks a payment `confirmed`/`failed` when Razorpay reports it | Razorpay only (signature-verified) | Razorpay event payload | 200 OK | F02 |
+| `rpc create_payment(payload)` | records a payment the user made outside the app | from_user or group member | from_user, to_user, amount | payment row | F02 |
 | `rpc get_activity_feed(group_id\|null, cursor)` | paginated activity list | group member (or caller, for non-group) | cursor | activity rows | S11 |
 | `GET export-csv?group_id=` (Edge Fn, should-have) | streams expense history as CSV | group member | group_id, date range | CSV file | should-have |
 | `POST receipts-ocr` (Edge Fn, could-have) | uploads a photo, returns detected line items | authed user | image | item[] | S16 |
 
-Webhooks in: Razorpay (payment link paid/failed/expired).
+Webhooks in: none (no payment gateway — settle-up is a manual record, see
+the stack table above).
 Webhooks out: none for v1 (no partner integrations — see recon's out-of-scope list).
 Jobs: `post_recurring_expenses` — `pg_cron`, daily at 00:05 local per group's creator timezone,
 finds `expenses` rows with `repeat_interval <> 'none'` due today and inserts the next instance
@@ -86,10 +86,10 @@ finds `expenses` rows with `repeat_interval <> 'none'` due today and inserts the
   day-level dates. Recurring-expense posting must compute "due today" in the *group creator's*
   timezone (stored on `users.timezone`, default `Asia/Kolkata`), not server UTC — otherwise a
   rent expense posts a day early or late for users east/west of UTC.
-- **Idempotency**: the Razorpay webhook can arrive more than once or out of order. Guarded by a
-  unique constraint on `payments.razorpay_payment_link_id` plus a status-transition check in
-  `create_payment`/the webhook handler (never move a `confirmed` payment back to `pending`), and
-  the webhook signature is verified before anything is written.
+- **Idempotency**: a double-tap on "Confirm" in Settle Up could record the same payment twice.
+  Guarded client-side (the button disables after the first tap) and, since this is pure CRUD with
+  no external system to reconcile against, that's sufficient — there's no webhook or async
+  confirmation step to arrive twice.
 - **Races**: two members tapping "Settle up" on the same balance at once, or an expense being
   edited while someone is mid-split. `create_expense`/`update_expense`/`create_payment` all run
   inside a single transaction; `get_simplified_transfers` reads inside that same transaction's
@@ -122,8 +122,8 @@ finds `expenses` rows with `repeat_interval <> 'none'` due today and inserts the
    free expense entry" needs no code — it's the *absence* of a usage-cap check that Splitwise
    added later (recon F05); just never build one.
 3. **Should-haves**: recurring expenses + the `pg_cron` job (S06 repeat picker), multi-currency,
-   itemized manual entry, comments (S08), activity feed + triggers (S11), Razorpay settle-up
-   (S09 upgrade), avatars/cover photos via Storage, Totals screen (S14), expense search.
+   itemized manual entry, comments (S08), activity feed + triggers (S11), avatars/cover photos
+   via Storage, Totals screen (S14), expense search.
 4. **Could-haves**: receipt OCR (S16), spending charts (S15), CSV/JSON export, offline queue, dark
    mode, and — only if monetization is wanted — an optional Stripe-billed Pro tier for the
    could-have features, never for anything in the must-have list.

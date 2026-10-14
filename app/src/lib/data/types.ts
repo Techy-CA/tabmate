@@ -4,8 +4,11 @@
 
 export type SplitType = "equal" | "exact" | "percentage" | "shares" | "adjustment" | "itemized";
 export type RepeatInterval = "none" | "weekly" | "fortnightly" | "monthly" | "yearly";
-export type PaymentMethod = "manual" | "razorpay_link";
-export type PaymentStatus = "pending" | "confirmed" | "failed" | "cancelled";
+// Settle-up only ever records a payment made outside the app (cash, bank
+// transfer, UPI the user did themselves) — Tabmate is an expense tracker
+// between friends, not a payment processor, so there's no payment-gateway
+// method or async pending/failed state to model.
+export type PaymentStatus = "confirmed" | "cancelled";
 export type ActivityType =
   | "expense_added"
   | "expense_updated"
@@ -100,7 +103,6 @@ export type Payment = {
   toUserId: string;
   amountCents: number;
   currencyCode: string;
-  method: PaymentMethod;
   status: PaymentStatus;
   createdAt: string;
 };

@@ -18,7 +18,6 @@ import type {
   Group,
   GroupMember,
   Payment,
-  PaymentMethod,
   SplitType,
   Transfer,
   User,
@@ -55,7 +54,6 @@ type NewPaymentInput = {
   toUserId: string;
   amountCents: number;
   currencyCode: string;
-  method: PaymentMethod;
 };
 
 type DataContextValue = {
@@ -373,8 +371,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         toUserId: input.toUserId,
         amountCents: input.amountCents,
         currencyCode: input.currencyCode,
-        method: input.method,
-        status: input.method === "manual" ? "confirmed" : "pending",
+        status: "confirmed",
         createdAt: new Date().toISOString(),
       };
       setPayments((prev) => [payment, ...prev]);
