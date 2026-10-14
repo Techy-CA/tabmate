@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
-import { Alert, Pressable, ScrollView, Share, Text, View } from "react-native";
+import { Pressable, ScrollView, Share, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Avatar } from "@/components/Avatar";
@@ -9,6 +9,7 @@ import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
 import { Toggle } from "@/components/Toggle";
 import { useData } from "@/lib/data/store";
+import { confirmAction } from "@/lib/confirm";
 import { goBack } from "@/lib/nav";
 
 // S12 — Group settings
@@ -20,27 +21,36 @@ export default function GroupSettings() {
 
   const group = getGroup(id);
   const [name, setName] = useState(group?.name ?? "");
+  const [inviteCode, setInviteCode] = useState<string | undefined>();
 
   if (!group) return null;
   const members = listGroupMembers(group.id);
 
   const invite = async () => {
     const code = createGroupInvite(group.id);
-    await Share.share({ message: `Join "${group.name}" on Splitsy — invite code: ${code}` });
+    // Always show the code in-app — some platforms (web) have no Share
+    // implementation at all, and even where Share works, showing the code
+    // directly means the invitee can be told the code out loud or over
+    // chat, not just via whatever the OS share sheet offers.
+    setInviteCode(code);
+    try {
+      await Share.share({ message: `Join "${group.name}" on Splitsy — invite code: ${code}` });
+    } catch {
+      // Share is unavailable (e.g. the web preview) — the on-screen code above is the fallback.
+    }
   };
 
   const confirmLeave = () => {
-    Alert.alert("Leave group?", `You'll stop seeing expenses in ${group.name}.`, [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Leave",
-        style: "destructive",
-        onPress: () => {
-          leaveGroup(group.id);
-          router.replace("/(tabs)");
-        },
+    confirmAction({
+      title: "Leave group?",
+      message: `You'll stop seeing expenses in ${group.name}.`,
+      confirmLabel: "Leave",
+      destructive: true,
+      onConfirm: () => {
+        leaveGroup(group.id);
+        router.replace("/(tabs)");
       },
-    ]);
+    });
   };
 
   return (
@@ -80,6 +90,13 @@ export default function GroupSettings() {
             </View>
           ))}
           <Button label="Invite via link" variant="secondary" onPress={invite} />
+          {inviteCode ? (
+            <View className="mt-1 flex-row items-center justify-between rounded-md bg-surface px-3 py-2">
+              <Text className="font-sans text-xs text-muted">
+                Invite code: <Text className="font-sans-semibold text-text">{inviteCode}</Text>
+              </Text>
+            </View>
+          ) : null}
         </View>
 
         <View className="border-t border-border">

@@ -35,30 +35,42 @@ const REPEAT_OPTIONS: { value: RepeatInterval; label: string }[] = [
 
 const CATEGORIES = ["general", "rent", "groceries", "utilities", "travel", "food"];
 
-// S06 + S07 — Add expense, with the full split-type picker inline
+// S06 + S07 — Add expense, with the full split-type picker inline.
+// Also handles editing: ?editId=<id> loads an existing expense. Editing
+// always reopens as an "exact amounts" split pre-filled with each person's
+// current owed share — the original split type (e.g. "60/40") isn't
+// round-tripped, since percentage/shares/adjustment inputs can't be
+// reconstructed from a stored owedCents total alone. The user edits the
+// literal amounts instead, which is always correct and never lossy.
 export default function AddExpense() {
   const router = useRouter();
-  const { groupId: groupIdParam } = useLocalSearchParams<{ groupId?: string }>();
-  const { listGroupMembers, listFriends, currentUser, createExpense, getGroup } = useData();
+  const { groupId: groupIdParam, editId } = useLocalSearchParams<{ groupId?: string; editId?: string }>();
+  const { listGroupMembers, listFriends, currentUser, createExpense, updateExpense, getExpense, getGroup } =
+    useData();
 
-  const groupId = groupIdParam || undefined;
+  const editing = editId ? getExpense(editId) : undefined;
+  const groupId = groupIdParam || editing?.groupId || undefined;
   const group = groupId ? getGroup(groupId) : undefined;
   const groupMembers = groupId ? listGroupMembers(groupId) : [];
   const friends = listFriends();
 
-  const [friendIds, setFriendIds] = useState<Set<string>>(new Set());
+  const [friendIds, setFriendIds] = useState<Set<string>>(
+    () => new Set(editing?.shares.map((s) => s.userId).filter((id) => id !== currentUser.id))
+  );
   const participants: User[] = groupId ? groupMembers : [currentUser, ...friends.filter((f) => friendIds.has(f.id))];
   const participantIds = participants.map((p) => p.id);
 
-  const [description, setDescription] = useState("");
-  const [amountText, setAmountText] = useState("");
+  const [description, setDescription] = useState(editing?.description ?? "");
+  const [amountText, setAmountText] = useState(editing ? (editing.amountCents / 100).toString() : "");
   const amountCents = Math.round((parseFloat(amountText || "0") || 0) * 100);
-  const [category, setCategory] = useState("general");
-  const [paidBy, setPaidBy] = useState(currentUser.id);
-  const [splitType, setSplitType] = useState<SplitType>("equal");
-  const [repeatInterval, setRepeatInterval] = useState<RepeatInterval>("none");
-  const [inputs, setInputs] = useState<Record<string, number>>({});
-  const [splitSheetOpen, setSplitSheetOpen] = useState(false);
+  const [category, setCategory] = useState(editing?.category ?? "general");
+  const [paidBy, setPaidBy] = useState(editing?.shares.find((s) => s.paidCents > 0)?.userId ?? currentUser.id);
+  const [splitType, setSplitType] = useState<SplitType>(editing ? "exact" : "equal");
+  const [repeatInterval, setRepeatInterval] = useState<RepeatInterval>(editing?.repeatInterval ?? "none");
+  const [inputs, setInputs] = useState<Record<string, number>>(() =>
+    editing ? Object.fromEntries(editing.shares.map((s) => [s.userId, s.owedCents])) : {}
+  );
+  const [splitSheetOpen, setSplitSheetOpen] = useState(!!editing);
   const [error, setError] = useState<string | undefined>();
 
   const shares = computeShares(splitType, amountCents, participantIds, inputs);
@@ -86,6 +98,24 @@ export default function AddExpense() {
       setError("Fix the split before saving — " + remainder.message);
       return;
     }
+
+    if (editing) {
+      updateExpense(editing.id, {
+        description: description.trim(),
+        amountCents,
+        category,
+        splitType,
+        repeatInterval,
+        shares: shares.map((s) => ({
+          userId: s.userId,
+          owedCents: s.owedCents,
+          paidCents: s.userId === paidBy ? amountCents : 0,
+        })),
+      });
+      goBack(router, `/expense/${editing.id}`);
+      return;
+    }
+
     createExpense({
       groupId,
       description: description.trim(),
@@ -107,11 +137,11 @@ export default function AddExpense() {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Cancel"
-          onPress={() => goBack(router, groupId ? `/group/${groupId}` : "/")}
+          onPress={() => goBack(router, editing ? `/expense/${editing.id}` : groupId ? `/group/${groupId}` : "/")}
         >
           <Feather name="x" size={22} color="#1f2430" />
         </Pressable>
-        <Text className="font-display text-lg text-text">Add expense</Text>
+        <Text className="font-display text-lg text-text">{editing ? "Edit expense" : "Add expense"}</Text>
         <View className="w-6" />
       </View>
 
@@ -240,7 +270,7 @@ export default function AddExpense() {
           <SegmentedControl options={REPEAT_OPTIONS} value={repeatInterval} onChange={setRepeatInterval} />
         </View>
 
-        <Button label="Save expense" size="lg" onPress={submit} />
+        <Button label={editing ? "Save changes" : "Save expense"} size="lg" onPress={submit} />
       </ScrollView>
     </SafeAreaView>
   );

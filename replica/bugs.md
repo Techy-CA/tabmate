@@ -181,13 +181,62 @@ and by re-running the full e2e suite.
 Note: since this is a shared primitive, the fix applies to every screen at
 once — no other `Input` call sites needed changes.
 
-## To check (not yet reproduced as a bug)
+### BUG-007: Share.share() threw uncaught on web, invite code never shown
 
-- `Alert.alert()` (used for delete-expense and leave-group confirmations)
-  did not visibly render a dialog in the web preview when tapped — no error
-  in console, button press registered, but no confirm/cancel UI appeared.
-  This is very likely a `react-native-web` limitation (Alert has full native
-  support on Android, which is the actual ship target), not a real-device
-  bug, but it needs confirming on an actual Android build or emulator before
-  `/replica-launch` — the delete/leave flows are currently **unverified on
-  the target platform**.
+- Severity: S2
+- Flow / case: F04 (join a group via invite link), specifically generating
+  the invite from group settings
+- Screen: S12
+- Build: post-BUG-001..006 fixes
+
+Steps
+1. Open any group → Group settings → "Invite via link".
+
+Expected: the invite code is generated and shown to the user somehow (a
+share sheet, an on-screen code, anything).
+Actual: `Share.share()` threw `Error: Share is not supported in this
+browser` as an **uncaught** promise rejection — the invite code had already
+been created in the data layer (so it technically existed), but the user
+saw and got absolutely nothing. No error message, no code, no feedback.
+Evidence: browser console, `Uncaught (in promise) Error: Share is not
+supported in this browser` at `Share.share`.
+Suspected cause: `Share` (from `react-native`) has no web implementation in
+react-native-web — unlike `Alert`, which degrades to a silent no-op, `Share`
+throws. The call wasn't wrapped in a try/catch, and nothing displayed the
+code independently of the share action succeeding.
+Status: fixed — the invite code is now always rendered on-screen the moment
+it's generated (`group/[id]/settings.tsx`), independent of whether
+`Share.share()` succeeds; the share call itself is now wrapped in
+try/catch so a platform without Share support degrades gracefully instead
+of crashing. This is also better UX than the original plan: a visible code
+can be read aloud or typed into chat, not just shared via whatever the OS
+offers. Verified live and covered by `f04-groups.spec.ts`'s BUG-007
+regression test.
+
+### BUG-008: Alert.alert() confirmations were a silent no-op on web
+
+- Severity: S2
+- Flow / case: delete an expense, leave a group — any destructive action
+  gated behind a confirmation dialog
+- Screen: S08 (delete), S12 (leave group)
+- Build: post-BUG-001..007 fixes
+
+Steps
+1. Open an expense, tap the delete (trash) icon.
+
+Expected: a confirm/cancel dialog, then the expense is soft-deleted on
+confirm.
+Actual: nothing happened at all — no dialog, no error, no state change.
+Confirmed two ways: manually in the browser (button press registered,
+nothing rendered) and automatically (`page.on('dialog')` in Playwright never
+fired, proving no native browser dialog API was invoked at all — this
+promoted it from "to check" to a confirmed bug rather than a guess).
+Suspected cause: `Alert.alert()` has no web implementation in
+react-native-web; unlike `Share.share()` (BUG-007), it doesn't even throw —
+it just does nothing, which is worse to debug because there's no error to
+find.
+Status: fixed — added `src/lib/confirm.ts`'s `confirmAction()`, which uses
+`window.confirm()` on web and `Alert.alert()` everywhere else. Both call
+sites (delete-expense, leave-group) now use it. Verified live and by e2e
+(`edit-expense.spec.ts`'s delete/restore test, which failed before this fix
+and passes after it).

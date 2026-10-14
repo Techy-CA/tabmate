@@ -50,7 +50,7 @@ export default function JoinGroup() {
         />
 
         {preview ? (
-          <View className="gap-1 rounded-lg border border-border bg-surface p-4">
+          <View testID="join-preview" className="gap-1 rounded-lg border border-border bg-surface p-4">
             <Text className="font-sans text-xs text-muted">You&apos;re about to join</Text>
             <Text className="font-sans-semibold text-base text-text">{preview.name}</Text>
           </View>
