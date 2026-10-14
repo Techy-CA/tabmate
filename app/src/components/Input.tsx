@@ -50,7 +50,7 @@ export function Input({ label, error, prefix, hideLabel, ...rest }: InputProps) 
             rest.onBlur?.(e);
           }}
           placeholderTextColor="#6b7280"
-          className="flex-1 font-sans text-base text-text"
+          className="flex-1 font-sans text-base text-text outline-none"
         />
       </View>
       {error ? (

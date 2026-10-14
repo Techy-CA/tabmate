@@ -15,14 +15,14 @@ Edit or delete an expense (any involved member),expenses,must,yes,yes,"verified:
 Per-group and per-friend balance view,balances,must,yes,yes,"verified: all 4 seed friend balances hand-calculated and matched exactly after fixing BUG-003 (pairwise math); Account's account-wide ""Overall balance"" also fixed (BUG-009 - was silently excluding non-group expenses) and verified exact"
 Simplify Debts (minimize payment paths),balances,must,yes,yes,"verified: greedy algorithm confirmed correct by hand, including the reroute-after-partial-settle case and the reroute-after-member-removal case"
 Settle up - record a manual payment,payments,must,yes,yes,"verified both directions (BUG-005 fix: ""you pay"" and ""record that you were paid"")"
-Recurring expenses (weekly/fortnightly/monthly/yearly),expenses,should,yes,partial,"repeat picker in S06 saves the field, ""· repeats"" indicator confirmed visually; no cron/scheduled posting yet (that's replica-backend)"
+Recurring expenses (weekly/fortnightly/monthly/yearly),expenses,should,yes,yes,"repeat picker saves the field; due occurrences now auto-post client-side (lib/data/recurring.ts) as a stand-in for the real pg_cron job, which replaces this once replica-backend lands"
 Multi-currency support per expense,expenses,should,yes,partial,data model supports it; UI is INR-only for now
 Itemized split from a receipt (manual entry),expenses,should,yes,no,correctly NOT exposed in the split-type picker yet - computeShares would return zero owed; needs the item-assignment screen first
 Comment on an expense,expenses,should,yes,yes,"verified: add-comment tested manually, appears instantly and clears the input"
 Activity feed / push notifications,notifications,should,yes,partial,"verified: feed renders correctly, newest-first, with correct action text for every event type (manual); push notifications still not implemented"
 In-app settle-up payment (UPI/payment gateway),payments,out-of-scope,no,n/a,explicit product decision: Tabmate is an expense tracker between friends, not a payment processor — settle-up is always a manual record of cash/bank/UPI done outside the app
 Custom avatars and group cover photos,personalization,should,yes,no,deterministic initials-avatar only; photo upload not built
-Totals screen (group spending over a date range),analytics,should,yes,partial,"verified: per-member paid/owed figures hand-calculated and confirmed exact (manual); still no date-range filter"
+Totals screen (group spending over a date range),analytics,should,yes,yes,"verified: per-member paid/owed figures hand-calculated and confirmed exact (manual); This month / Last month / All time filter added and click-tested"
 Expense search,expenses,should,yes,no,not built
 Receipt photo OCR + auto-itemization,expenses,could,yes,no,not built
 Spending-by-category charts,analytics,could,yes,no,not built

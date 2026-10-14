@@ -4,7 +4,7 @@ import { Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Avatar } from "@/components/Avatar";
-import { BalanceChip } from "@/components/BalanceChip";
+import { BalanceStack } from "@/components/BalanceChip";
 import { EmptyState } from "@/components/EmptyState";
 import { formatCents } from "@/lib/data/balances";
 import { useData } from "@/lib/data/store";
@@ -67,12 +67,12 @@ export default function Home() {
                     </Text>
                   </View>
                   {mine ? (
-                    <BalanceChip
+                    <BalanceStack
                       state={mine.balanceCents > 0 ? "owed-to-you" : "you-owe"}
                       amount={formatCents(Math.abs(mine.balanceCents), g.defaultCurrency)}
                     />
                   ) : (
-                    <BalanceChip state="settled" />
+                    <BalanceStack state="settled" />
                   )}
                 </Pressable>
               );
@@ -100,9 +100,9 @@ export default function Home() {
                     <Text className="font-sans-semibold text-base text-text">{f.name}</Text>
                   </View>
                   {balance !== 0 ? (
-                    <BalanceChip state={balance > 0 ? "owed-to-you" : "you-owe"} amount={formatCents(Math.abs(balance), "INR")} />
+                    <BalanceStack state={balance > 0 ? "owed-to-you" : "you-owe"} amount={formatCents(Math.abs(balance), "INR")} />
                   ) : (
-                    <BalanceChip state="settled" />
+                    <BalanceStack state="settled" />
                   )}
                 </Pressable>
               );

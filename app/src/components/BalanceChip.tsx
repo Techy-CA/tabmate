@@ -36,3 +36,22 @@ export function BalanceChip({ state, amount, size = "md" }: BalanceChipProps) {
     </View>
   );
 }
+
+/**
+ * Row-list variant: amount and label stacked, right-aligned, no pill
+ * background. A pill's width tracks its text, so a column of pills next to
+ * variable-length amounts (₹2,000 vs ₹23,533.33) reads as randomly sized —
+ * right-aligned text keeps every row's right edge lined up instead.
+ */
+export function BalanceStack({ state, amount }: BalanceChipProps) {
+  const c = config[state];
+  if (state === "settled" || !amount) {
+    return <Text className="font-sans-medium text-sm text-muted">{c.defaultLabel}</Text>;
+  }
+  return (
+    <View className="items-end">
+      <Text className={`font-sans-semibold text-base ${c.text}`}>{amount}</Text>
+      <Text className={`font-sans text-xs ${c.text}`}>{c.defaultLabel}</Text>
+    </View>
+  );
+}

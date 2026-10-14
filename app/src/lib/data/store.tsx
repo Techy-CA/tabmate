@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useMemo, useState } from "react";
 
 import { computeBalances, simplifyDebts } from "./balances";
+import { expandDueRecurringExpenses } from "./recurring";
 import {
   CURRENT_USER_ID,
   seedActivity,
@@ -104,7 +105,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const [users] = useState<User[]>(seedUsers);
   const [groups, setGroups] = useState<Group[]>(seedGroups);
   const [groupMembers, setGroupMembers] = useState<GroupMember[]>(seedGroupMembers);
-  const [expenses, setExpenses] = useState<Expense[]>(seedExpenses);
+  const [expenses, setExpenses] = useState<Expense[]>(() => [
+    ...expandDueRecurringExpenses(seedExpenses),
+    ...seedExpenses,
+  ]);
   const [payments, setPayments] = useState<Payment[]>(seedPayments);
   const [comments, setComments] = useState<ExpenseComment[]>([]);
   const [activity, setActivity] = useState<ActivityItem[]>(seedActivity);
