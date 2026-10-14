@@ -94,6 +94,9 @@ type DataContextValue = {
   restoreExpense: (id: string) => void;
 
   createPayment: (input: NewPaymentInput) => Payment;
+  getPayment: (id: string) => Payment | undefined;
+  getFriendPayments: (friendId: string) => Payment[];
+  cancelPayment: (id: string) => void;
 
   listComments: (expenseId: string) => ExpenseComment[];
   addComment: (expenseId: string, body: string) => void;
@@ -416,6 +419,39 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     [logActivity, getUser]
   );
 
+  const getPayment = useCallback((id: string) => payments.find((p) => p.id === id), [payments]);
+
+  const getFriendPayments = useCallback(
+    (friendId: string) =>
+      payments
+        .filter(
+          (p) =>
+            (p.fromUserId === friendId && p.toUserId === CURRENT_USER_ID) ||
+            (p.fromUserId === CURRENT_USER_ID && p.toUserId === friendId)
+        )
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+    [payments]
+  );
+
+  const cancelPayment = useCallback(
+    (id: string) => {
+      setPayments((prev) => prev.map((p) => (p.id === id ? { ...p, status: "cancelled" } : p)));
+      const p = payments.find((x) => x.id === id);
+      const otherPartyId = p ? (p.fromUserId === CURRENT_USER_ID ? p.toUserId : p.fromUserId) : undefined;
+      const otherPartyName = otherPartyId ? getUser(otherPartyId)?.name ?? "" : "";
+      if (p) {
+        logActivity({
+          actorUserId: CURRENT_USER_ID,
+          groupId: p.groupId,
+          type: "payment_recorded",
+          refId: p.id,
+          metadata: { description: `Cancelled a payment with ${otherPartyName}` },
+        });
+      }
+    },
+    [payments, getUser, logActivity]
+  );
+
   const listComments = useCallback(
     (expenseId: string) => comments.filter((c) => c.expenseId === expenseId).sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
     [comments]
@@ -471,6 +507,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       softDeleteExpense,
       restoreExpense,
       createPayment,
+      getPayment,
+      getFriendPayments,
+      cancelPayment,
       listComments,
       addComment,
       getActivityFeed,
@@ -506,6 +545,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       softDeleteExpense,
       restoreExpense,
       createPayment,
+      getPayment,
+      getFriendPayments,
+      cancelPayment,
       listComments,
       addComment,
       getActivityFeed,

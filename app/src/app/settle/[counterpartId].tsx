@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useState } from "react";
-import { Pressable, Text, View } from "react-native";
+import { useEffect, useState } from "react";
+import { Animated, Pressable, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Avatar } from "@/components/Avatar";
@@ -31,6 +31,13 @@ export default function SettleUp() {
 
   const [amountText, setAmountText] = useState((suggestedCents / 100).toFixed(2));
   const [done, setDone] = useState(false);
+  const [doneProgress] = useState(() => new Animated.Value(0));
+
+  useEffect(() => {
+    if (done) {
+      Animated.timing(doneProgress, { toValue: 1, duration: 300, useNativeDriver: true }).start();
+    }
+  }, [done, doneProgress]);
 
   if (!counterpart) return null;
   const amountCents = Math.round((parseFloat(amountText || "0") || 0) * 100);
@@ -49,14 +56,26 @@ export default function SettleUp() {
   };
 
   if (done) {
+    const scale = doneProgress.interpolate({ inputRange: [0, 1], outputRange: [0.85, 1] });
     return (
-      <SafeAreaView className="flex-1 items-center justify-center gap-4 bg-bg p-6">
-        <Feather name="check-circle" size={48} color="#15803d" />
-        <Text className="font-display text-lg text-text">All squared away</Text>
-        <Text className="text-center font-sans text-sm text-muted">
-          {formatCents(amountCents, "INR")} with {counterpart.name}.
-        </Text>
-        <Button label="Done" onPress={() => goBack(router, fallbackHref)} />
+      <SafeAreaView className="flex-1 items-center justify-center bg-bg p-6">
+        <Animated.View
+          className="w-full items-center gap-6"
+          style={{ opacity: doneProgress, transform: [{ scale }] }}
+        >
+          <View className="h-20 w-20 items-center justify-center rounded-pill bg-success/10">
+            <Feather name="check" size={36} color="#15803d" />
+          </View>
+
+          <View className="items-center gap-1">
+            <Text className="font-display text-xl text-text">All squared away</Text>
+            <Text className="font-sans text-sm text-muted">with {counterpart.name}</Text>
+          </View>
+
+          <Text className="font-display text-display text-success">{formatCents(amountCents, "INR")}</Text>
+
+          <Button label="Done" size="lg" onPress={() => goBack(router, fallbackHref)} />
+        </Animated.View>
       </SafeAreaView>
     );
   }

@@ -1,8 +1,8 @@
 import { Image, Text, View } from "react-native";
 
-type Size = "xs" | "sm" | "md" | "lg";
+type Size = "xs" | "sm" | "md" | "lg" | "xl";
 
-const sizeMap: Record<Size, number> = { xs: 20, sm: 28, md: 40, lg: 56 };
+const sizeMap: Record<Size, number> = { xs: 20, sm: 28, md: 40, lg: 56, xl: 88 };
 
 // Deterministic colour from a user id, so the same person is always the same
 // colour without storing a colour field. Values are placeholder-palette tints

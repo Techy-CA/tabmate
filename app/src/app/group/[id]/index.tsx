@@ -107,13 +107,20 @@ export default function GroupDetail() {
             ))}
           </View>
 
-          {mine && mine.balanceCents < 0 ? (
+          {mine && mine.balanceCents !== 0 ? (
             <Button
               label="Settle up"
               onPress={() => {
-                const creditor = transfers.find((t) => t.from === currentUser.id);
-                const toId = creditor?.to ?? balances.find((b) => b.balanceCents > 0)?.userId;
-                if (toId) router.push(`/settle/${toId}?groupId=${group.id}`);
+                // Same action either direction — "pay someone" when you owe,
+                // "record that someone paid you" when the group owes you.
+                // The Settle Up screen itself frames which one it is.
+                const counterpartId =
+                  mine.balanceCents < 0
+                    ? transfers.find((t) => t.from === currentUser.id)?.to ??
+                      balances.find((b) => b.balanceCents > 0)?.userId
+                    : transfers.find((t) => t.to === currentUser.id)?.from ??
+                      balances.find((b) => b.balanceCents < 0)?.userId;
+                if (counterpartId) router.push(`/settle/${counterpartId}?groupId=${group.id}`);
               }}
             />
           ) : null}

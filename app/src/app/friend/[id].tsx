@@ -15,12 +15,13 @@ import { goBack } from "@/lib/nav";
 export default function FriendDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { getUser, getFriendExpenses, getFriendBalance, currentUser, getGroup } = useData();
+  const { getUser, getFriendExpenses, getFriendPayments, getFriendBalance, currentUser, getGroup } = useData();
 
   const friend = getUser(id);
   if (!friend) return null;
 
   const expenses = getFriendExpenses(friend.id).filter((e) => !e.deletedAt);
+  const paymentsList = getFriendPayments(friend.id);
   const balance = getFriendBalance(friend.id);
 
   return (
@@ -29,20 +30,24 @@ export default function FriendDetail() {
         <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => goBack(router, "/")}>
           <Feather name="arrow-left" size={22} color="#1f2430" />
         </Pressable>
-        <Avatar id={friend.id} name={friend.name} size="sm" />
         <Text className="font-display text-lg text-text">{friend.name}</Text>
       </View>
 
-      <ScrollView contentContainerClassName="gap-5 p-6 pb-10">
-        <View className="items-center gap-3 rounded-lg border border-border bg-surface p-5">
-          {balance !== 0 ? (
-            <BalanceHero state={balance > 0 ? "owed-to-you" : "you-owe"} amount={formatCents(Math.abs(balance), "INR")} />
-          ) : (
-            <BalanceHero state="settled" />
-          )}
-          {balance < 0 ? (
-            <Button label={`Settle up with ${friend.name}`} onPress={() => router.push(`/settle/${friend.id}`)} />
-          ) : null}
+      <ScrollView contentContainerClassName="gap-6 p-6 pb-10">
+        {/* Profile-style header: identity first, balance as a stat under the
+            name, action as a clear standalone CTA — not a number-plus-button
+            crammed into one small bordered box. */}
+        <View className="items-center gap-4 pt-2">
+          <Avatar id={friend.id} name={friend.name} size="xl" />
+          <View className="items-center gap-1">
+            <Text className="font-display text-lg text-text">{friend.name}</Text>
+            {balance !== 0 ? (
+              <BalanceHero state={balance > 0 ? "owed-to-you" : "you-owe"} amount={formatCents(Math.abs(balance), "INR")} />
+            ) : (
+              <BalanceHero state="settled" />
+            )}
+          </View>
+          {balance !== 0 ? <Button label="Settle up" size="lg" onPress={() => router.push(`/settle/${friend.id}`)} /> : null}
         </View>
 
         <View className="gap-2">
@@ -73,6 +78,41 @@ export default function FriendDetail() {
                     }`}
                   >
                     {formatCents(e.amountCents, e.currencyCode)}
+                  </Text>
+                </Pressable>
+              );
+            })
+          )}
+        </View>
+
+        <View className="gap-2">
+          <Text className="font-sans-semibold text-sm text-text">Payments</Text>
+          {paymentsList.length === 0 ? (
+            <EmptyState icon="check-circle" title="No payments yet" body="Settle up and it'll show up here." />
+          ) : (
+            paymentsList.map((p) => {
+              const iPaid = p.fromUserId === currentUser.id;
+              const group = p.groupId ? getGroup(p.groupId) : undefined;
+              const cancelled = p.status === "cancelled";
+              return (
+                <Pressable
+                  key={p.id}
+                  onPress={() => router.push(`/payment/${p.id}`)}
+                  accessibilityRole="button"
+                  className="flex-row items-center justify-between border-b border-border py-3"
+                >
+                  <View className="flex-1">
+                    <Text className={`font-sans-medium text-sm ${cancelled ? "text-muted line-through" : "text-text"}`}>
+                      {iPaid ? `You paid ${friend.name}` : `${friend.name} paid you`}
+                    </Text>
+                    <Text className="font-sans text-xs text-muted">
+                      {group ? `${group.name} · ` : ""}
+                      {p.createdAt.slice(0, 10)}
+                      {cancelled ? " · cancelled" : ""}
+                    </Text>
+                  </View>
+                  <Text className={`font-sans-semibold text-sm ${cancelled ? "text-muted" : iPaid ? "text-danger" : "text-success"}`}>
+                    {formatCents(p.amountCents, p.currencyCode)}
                   </Text>
                 </Pressable>
               );
