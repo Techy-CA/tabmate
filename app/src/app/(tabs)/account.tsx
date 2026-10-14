@@ -4,11 +4,9 @@ import { Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Avatar } from "@/components/Avatar";
-import { Toggle } from "@/components/Toggle";
 import { formatCents } from "@/lib/data/balances";
 import { useData } from "@/lib/data/store";
 import { useAuth } from "@/lib/auth";
-import { useState } from "react";
 
 function Row({ icon, label, onPress }: { icon: React.ComponentProps<typeof Feather>["name"]; label: string; onPress?: () => void }) {
   return (
@@ -27,18 +25,25 @@ export default function Account() {
   const router = useRouter();
   const { currentUser, getTotalBalance } = useData();
   const { signOut } = useAuth();
-  const [notifications, setNotifications] = useState(true);
 
   const total = getTotalBalance();
 
   return (
     <SafeAreaView className="flex-1 bg-bg" edges={["top"]}>
       <ScrollView contentContainerClassName="gap-6 p-6">
-        <View className="items-center gap-3 pt-4">
+        <Pressable
+          onPress={() => router.push("/account/edit-name")}
+          accessibilityRole="button"
+          accessibilityLabel="Edit name"
+          className="items-center gap-3 pt-4"
+        >
           <Avatar id={currentUser.id} name={currentUser.name} size="lg" />
-          <Text className="font-display text-lg text-text">{currentUser.name}</Text>
+          <View className="flex-row items-center gap-1.5">
+            <Text className="font-display text-lg text-text">{currentUser.name}</Text>
+            <Feather name="edit-2" size={14} color="#6b7280" />
+          </View>
           <Text className="font-sans text-sm text-muted">{currentUser.email}</Text>
-        </View>
+        </Pressable>
 
         <View className="items-center rounded-lg border border-border bg-surface p-4">
           <Text className="font-sans text-xs text-muted">Overall balance</Text>
@@ -48,12 +53,15 @@ export default function Account() {
         </View>
 
         <View className="border-t border-border">
-          <Row icon="dollar-sign" label="Default currency · INR" />
-          <Row icon="bell" label="Notifications" />
-          <Toggle label="Push notifications" value={notifications} onChange={setNotifications} />
-          <Row icon="shield" label="Security" />
+          <Row
+            icon="dollar-sign"
+            label={`Default currency · ${currentUser.defaultCurrency}`}
+            onPress={() => router.push("/account/currency")}
+          />
+          <Row icon="bell" label="Notifications" onPress={() => router.push("/account/notifications")} />
+          <Row icon="shield" label="Security" onPress={() => router.push("/account/security")} />
           <Row icon="star" label="Tabmate Pro" onPress={() => router.push("/pro")} />
-          <Row icon="help-circle" label="Help & support" />
+          <Row icon="help-circle" label="Help & support" onPress={() => router.push("/account/help")} />
         </View>
 
         <Pressable

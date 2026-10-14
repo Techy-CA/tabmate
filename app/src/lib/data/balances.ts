@@ -72,8 +72,10 @@ export function simplifyDebts(balances: Balance[]): Transfer[] {
   return transfers;
 }
 
+const CURRENCY_SYMBOLS: Record<string, string> = { INR: "₹", USD: "$", EUR: "€" };
+
 export function formatCents(cents: number, currencyCode: string): string {
-  const symbol = currencyCode === "INR" ? "₹" : currencyCode === "USD" ? "$" : `${currencyCode} `;
+  const symbol = CURRENCY_SYMBOLS[currencyCode] ?? `${currencyCode} `;
   const sign = cents < 0 ? "-" : "";
   return `${sign}${symbol}${(Math.abs(cents) / 100).toLocaleString("en-IN", {
     minimumFractionDigits: 0,

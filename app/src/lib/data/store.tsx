@@ -64,6 +64,7 @@ type DataContextValue = {
   groupMembers: GroupMember[];
 
   getUser: (id: string) => User | undefined;
+  updateCurrentUser: (patch: Partial<Pick<User, "name" | "defaultCurrency">>) => void;
   getGroup: (id: string) => Group | undefined;
   listMyGroups: () => Group[];
   listGroupMembers: (groupId: string) => User[];
@@ -103,7 +104,7 @@ type DataContextValue = {
 const DataContext = createContext<DataContextValue | null>(null);
 
 export function DataProvider({ children }: { children: React.ReactNode }) {
-  const [users] = useState<User[]>(seedUsers);
+  const [users, setUsers] = useState<User[]>(seedUsers);
   const [groups, setGroups] = useState<Group[]>(seedGroups);
   const [groupMembers, setGroupMembers] = useState<GroupMember[]>(seedGroupMembers);
   const [expenses, setExpenses] = useState<Expense[]>(() => [
@@ -128,6 +129,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   );
 
   const getUser = useCallback((id: string) => users.find((u) => u.id === id), [users]);
+  const updateCurrentUser = useCallback(
+    (patch: Partial<Pick<User, "name" | "defaultCurrency">>) =>
+      setUsers((prev) => prev.map((u) => (u.id === CURRENT_USER_ID ? { ...u, ...patch } : u))),
+    []
+  );
   const getGroup = useCallback((id: string) => groups.find((g) => g.id === id), [groups]);
 
   const listMyGroups = useCallback(
@@ -440,6 +446,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       groups,
       groupMembers,
       getUser,
+      updateCurrentUser,
       getGroup,
       listMyGroups,
       listGroupMembers,
@@ -474,6 +481,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       groups,
       groupMembers,
       getUser,
+      updateCurrentUser,
       getGroup,
       listMyGroups,
       listGroupMembers,
