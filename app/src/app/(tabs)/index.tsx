@@ -23,6 +23,14 @@ export default function Home() {
         <View className="flex-row gap-3">
           <Pressable
             accessibilityRole="button"
+            accessibilityLabel="Search expenses"
+            onPress={() => router.push("/search")}
+            className="h-9 w-9 items-center justify-center rounded-pill bg-surface"
+          >
+            <Feather name="search" size={18} color="#1f2430" />
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
             accessibilityLabel="Join a group"
             onPress={() => router.push("/group/join")}
             className="h-9 w-9 items-center justify-center rounded-pill bg-surface"

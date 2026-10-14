@@ -72,6 +72,7 @@ type DataContextValue = {
   getGroupExpenses: (groupId: string) => Expense[];
   getExpense: (id: string) => Expense | undefined;
   getFriendExpenses: (friendId: string) => Expense[];
+  listMyExpenses: () => Expense[];
 
   getGroupBalances: (groupId: string) => Balance[];
   getSimplifiedTransfers: (groupId: string) => Transfer[];
@@ -183,6 +184,20 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         .sort((a, b) => b.expenseDate.localeCompare(a.expenseDate)),
     [expenses]
   );
+
+  // Every expense the current user is part of, group or non-group — the
+  // search index. Same visibility rule as getTotalBalance: in a group they
+  // belong to, or a direct party to a non-group expense.
+  const listMyExpenses = useCallback(() => {
+    const myGroupIds = new Set(listMyGroups().map((g) => g.id));
+    return expenses
+      .filter(
+        (e) =>
+          !e.deletedAt &&
+          (e.groupId ? myGroupIds.has(e.groupId) : e.shares.some((s) => s.userId === CURRENT_USER_ID))
+      )
+      .sort((a, b) => b.expenseDate.localeCompare(a.expenseDate));
+  }, [expenses, listMyGroups]);
 
   const getGroupBalances = useCallback(
     (groupId: string) => {
@@ -432,6 +447,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       getGroupExpenses,
       getExpense,
       getFriendExpenses,
+      listMyExpenses,
       getGroupBalances,
       getSimplifiedTransfers,
       getFriendBalance,
@@ -465,6 +481,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       getGroupExpenses,
       getExpense,
       getFriendExpenses,
+      listMyExpenses,
       getGroupBalances,
       getSimplifiedTransfers,
       getFriendBalance,
