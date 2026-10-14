@@ -4,7 +4,7 @@ import { Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Avatar } from "@/components/Avatar";
-import { BalanceChip } from "@/components/BalanceChip";
+import { BalanceStack } from "@/components/Balance";
 import { Button } from "@/components/Button";
 import { EmptyState } from "@/components/EmptyState";
 import { formatCents } from "@/lib/data/balances";
@@ -75,12 +75,12 @@ export default function GroupDetail() {
             <Text className="font-sans text-sm text-muted">Your balance</Text>
             <View testID="group-balance">
               {mine ? (
-                <BalanceChip
+                <BalanceStack
                   state={mine.balanceCents > 0 ? "owed-to-you" : "you-owe"}
                   amount={formatCents(Math.abs(mine.balanceCents), group.defaultCurrency)}
                 />
               ) : (
-                <BalanceChip state="settled" />
+                <BalanceStack state="settled" />
               )}
             </View>
           </View>

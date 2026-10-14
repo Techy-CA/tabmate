@@ -4,7 +4,7 @@ import { Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Avatar } from "@/components/Avatar";
-import { BalanceChip } from "@/components/BalanceChip";
+import { BalanceHero } from "@/components/Balance";
 import { Button } from "@/components/Button";
 import { EmptyState } from "@/components/EmptyState";
 import { formatCents } from "@/lib/data/balances";
@@ -36,9 +36,9 @@ export default function FriendDetail() {
       <ScrollView contentContainerClassName="gap-5 p-6 pb-10">
         <View className="items-center gap-3 rounded-lg border border-border bg-surface p-5">
           {balance !== 0 ? (
-            <BalanceChip state={balance > 0 ? "owed-to-you" : "you-owe"} amount={formatCents(Math.abs(balance), "INR")} />
+            <BalanceHero state={balance > 0 ? "owed-to-you" : "you-owe"} amount={formatCents(Math.abs(balance), "INR")} />
           ) : (
-            <BalanceChip state="settled" />
+            <BalanceHero state="settled" />
           )}
           {balance < 0 ? (
             <Button label={`Settle up with ${friend.name}`} onPress={() => router.push(`/settle/${friend.id}`)} />

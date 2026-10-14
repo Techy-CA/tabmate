@@ -4,7 +4,7 @@ import { Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Avatar } from "@/components/Avatar";
-import { BalanceStack } from "@/components/BalanceChip";
+import { BalanceStack } from "@/components/Balance";
 import { EmptyState } from "@/components/EmptyState";
 import { formatCents } from "@/lib/data/balances";
 import { useData } from "@/lib/data/store";
