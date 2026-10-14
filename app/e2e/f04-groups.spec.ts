@@ -46,7 +46,10 @@ test.describe("group lifecycle", () => {
     // screens mounted off-screen.
     await page.goBack();
     await page.goBack();
-    await page.getByRole("button", { name: "Join a group" }).click();
+    // "Join a group" moved behind Add a friend's "have an invite code"
+    // link once that header icon became the friend-adding entry point.
+    await page.getByRole("button", { name: "Add a friend" }).click();
+    await page.getByText("Have an invite code instead? Join a group").click();
     await page.getByLabel("Invite code").fill(code!);
     await expect(page.getByTestId("join-preview")).toContainText("You're about to join");
     await expect(page.getByTestId("join-preview")).toContainText("Weekend Trip");

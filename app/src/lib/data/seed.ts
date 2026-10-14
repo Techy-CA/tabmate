@@ -15,6 +15,9 @@ export const seedUsers: User[] = [
   { id: "u-dev", name: "Dev Malhotra", email: "dev@example.com", defaultCurrency: "INR", timezone: "Asia/Kolkata" },
   { id: "u-ayaan", name: "Ayaan Sheikh", email: "ayaan@example.com", defaultCurrency: "INR", timezone: "Asia/Kolkata" },
   { id: "u-nisha", name: "Nisha Rao", email: "nisha@example.com", defaultCurrency: "INR", timezone: "Asia/Kolkata" },
+  // Deliberately not in any group or expense — exists so "add a friend by
+  // email" has a real not-yet-connected account to find.
+  { id: "u-priya", name: "Priya Nair", email: "priya@example.com", defaultCurrency: "INR", timezone: "Asia/Kolkata" },
 ];
 
 export const seedGroups: Group[] = [

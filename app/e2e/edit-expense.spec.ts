@@ -41,8 +41,10 @@ test.describe("edit expense", () => {
     await page.getByRole("button", { name: /^Indiranagar Flat,/ }).click();
     await page.getByRole("button", { name: /BigBasket groceries,/ }).click();
 
-    page.on("dialog", (d) => d.accept());
     await page.getByRole("button", { name: "Delete expense" }).click();
+    // Confirmed via the in-app ConfirmDialogHost, not a native browser dialog.
+    await expect(page.getByText("Remove this from the tab?")).toBeVisible();
+    await page.getByRole("button", { name: "Delete", exact: true }).click();
     await expect(page.getByText("This expense was deleted.")).toBeVisible();
 
     await page.getByRole("button", { name: "Restore expense" }).click();

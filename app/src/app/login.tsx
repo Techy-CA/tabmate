@@ -23,8 +23,12 @@ export default function LogIn() {
     }
     setError(undefined);
     setLoading(true);
-    await signIn(email);
+    const err = await signIn(email.trim(), password);
     setLoading(false);
+    if (err) {
+      setError(err);
+      return;
+    }
     router.replace("/(tabs)");
   };
 
@@ -64,8 +68,8 @@ export default function LogIn() {
           variant="secondary"
           size="lg"
           onPress={async () => {
-            await signInWithGoogle();
-            router.replace("/(tabs)");
+            const err = await signInWithGoogle();
+            if (err) setError(err);
           }}
         />
       </View>

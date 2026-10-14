@@ -31,8 +31,8 @@ export default function Home() {
           </Pressable>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Join a group"
-            onPress={() => router.push("/group/join")}
+            accessibilityLabel="Add a friend"
+            onPress={() => router.push("/friend/add")}
             className="h-9 w-9 items-center justify-center rounded-pill bg-surface"
           >
             <Feather name="user-plus" size={18} color="#1f2430" />

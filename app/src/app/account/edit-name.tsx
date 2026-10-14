@@ -15,12 +15,12 @@ export default function EditName() {
   const [name, setName] = useState(currentUser.name);
   const [error, setError] = useState<string | undefined>();
 
-  const save = () => {
+  const save = async () => {
     if (!name.trim()) {
       setError("Name can't be empty.");
       return;
     }
-    updateCurrentUser({ name: name.trim() });
+    await updateCurrentUser({ name: name.trim() });
     goBack(router, "/account");
   };
 

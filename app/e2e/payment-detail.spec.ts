@@ -16,8 +16,10 @@ test("cancelling a payment removes it from the friend's balance", async ({ page 
   await expect(page.getByText("₹5,000").last()).toBeVisible();
   await expect(page.getByText("Dev Malhotra paid you").last()).toBeVisible();
 
-  page.on("dialog", (d) => d.accept());
   await page.getByRole("button", { name: "Cancel this payment" }).click();
+  // Confirmed via the in-app ConfirmDialogHost, not a native browser dialog.
+  await expect(page.getByText("Cancel this payment?")).toBeVisible();
+  await page.getByRole("button", { name: "Cancel payment" }).click();
   await expect(page.getByText("This payment was cancelled.")).toBeVisible();
   await expect(page.getByRole("button", { name: "Cancel this payment" })).toHaveCount(0);
 

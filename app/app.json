@@ -28,7 +28,13 @@
     "plugins": [
       "expo-router",
       "expo-font",
-      "expo-splash-screen"
+      "expo-splash-screen",
+      [
+        "expo-contacts",
+        {
+          "contactsPermission": "Allow Tabmate to access your contacts so you can add friends you already know."
+        }
+      ]
     ]
   }
 }

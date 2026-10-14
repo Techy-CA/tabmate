@@ -27,7 +27,7 @@ export default function GroupSettings() {
   const members = listGroupMembers(group.id);
 
   const invite = async () => {
-    const code = createGroupInvite(group.id);
+    const code = await createGroupInvite(group.id);
     // Always show the code in-app — some platforms (web) have no Share
     // implementation at all, and even where Share works, showing the code
     // directly means the invitee can be told the code out loud or over
@@ -46,8 +46,8 @@ export default function GroupSettings() {
       message: `You'll stop seeing expenses in ${group.name}.`,
       confirmLabel: "Leave",
       destructive: true,
-      onConfirm: () => {
-        leaveGroup(group.id);
+      onConfirm: async () => {
+        await leaveGroup(group.id);
         router.replace("/(tabs)");
       },
     });

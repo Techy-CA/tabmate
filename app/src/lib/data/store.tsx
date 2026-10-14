@@ -1,16 +1,21 @@
-import { createContext, useCallback, useContext, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, View } from "react-native";
+
+import { useAuth } from "@/lib/auth";
+import { supabase } from "@/lib/supabase";
 
 import { computeBalances, simplifyDebts } from "./balances";
-import { expandDueRecurringExpenses } from "./recurring";
 import {
-  CURRENT_USER_ID,
-  seedActivity,
-  seedExpenses,
-  seedGroupMembers,
-  seedGroups,
-  seedPayments,
-  seedUsers,
-} from "./seed";
+  mapActivity,
+  mapComment,
+  mapExpense,
+  mapFriendship,
+  mapGroup,
+  mapGroupMember,
+  mapPayment,
+  mapUser,
+  type FriendshipRow,
+} from "./mappers";
 import type {
   ActivityItem,
   Balance,
@@ -23,14 +28,6 @@ import type {
   Transfer,
   User,
 } from "./types";
-
-function makeId(prefix: string) {
-  return `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
-}
-
-function makeCode() {
-  return Math.random().toString(36).slice(2, 8).toUpperCase();
-}
 
 type NewExpenseInput = {
   groupId?: string;
@@ -47,10 +44,6 @@ type NewExpenseInput = {
 
 type NewPaymentInput = {
   groupId?: string;
-  // Both directions are real: "I paid them back" and "record that they paid
-  // me" (recon.md quotes the original's own help text: "pay someone back or
-  // record that you've been paid"). fromUserId defaults to the current user
-  // so existing call sites (always "I paid") don't need to change.
   fromUserId?: string;
   toUserId: string;
   amountCents: number;
@@ -64,11 +57,12 @@ type DataContextValue = {
   groupMembers: GroupMember[];
 
   getUser: (id: string) => User | undefined;
-  updateCurrentUser: (patch: Partial<Pick<User, "name" | "defaultCurrency">>) => void;
+  updateCurrentUser: (patch: Partial<Pick<User, "name" | "defaultCurrency">>) => Promise<void>;
   getGroup: (id: string) => Group | undefined;
   listMyGroups: () => Group[];
   listGroupMembers: (groupId: string) => User[];
   listFriends: () => User[];
+  addFriendByEmail: (email: string) => Promise<User | "already-friends" | "self" | null>;
 
   getGroupExpenses: (groupId: string) => Expense[];
   getExpense: (id: string) => Expense | undefined;
@@ -80,26 +74,26 @@ type DataContextValue = {
   getFriendBalance: (friendId: string) => number;
   getTotalBalance: () => number;
 
-  createGroup: (name: string, memberIds: string[]) => Group;
-  updateGroup: (id: string, patch: Partial<Pick<Group, "name" | "simplifyDebts">>) => void;
-  removeMember: (groupId: string, userId: string) => void;
-  leaveGroup: (groupId: string) => void;
-  createGroupInvite: (groupId: string) => string;
-  joinGroupByCode: (code: string) => Group | null;
-  previewGroupByCode: (code: string) => Group | null;
+  createGroup: (name: string, memberIds: string[]) => Promise<Group>;
+  updateGroup: (id: string, patch: Partial<Pick<Group, "name" | "simplifyDebts">>) => Promise<void>;
+  removeMember: (groupId: string, userId: string) => Promise<void>;
+  leaveGroup: (groupId: string) => Promise<void>;
+  createGroupInvite: (groupId: string) => Promise<string>;
+  joinGroupByCode: (code: string) => Promise<Group | null>;
+  previewGroupByCode: (code: string) => Promise<Group | null>;
 
-  createExpense: (input: NewExpenseInput) => Expense;
-  updateExpense: (id: string, patch: Partial<Expense>) => void;
-  softDeleteExpense: (id: string) => void;
-  restoreExpense: (id: string) => void;
+  createExpense: (input: NewExpenseInput) => Promise<Expense>;
+  updateExpense: (id: string, patch: Partial<Expense>) => Promise<void>;
+  softDeleteExpense: (id: string) => Promise<void>;
+  restoreExpense: (id: string) => Promise<void>;
 
-  createPayment: (input: NewPaymentInput) => Payment;
+  createPayment: (input: NewPaymentInput) => Promise<Payment>;
   getPayment: (id: string) => Payment | undefined;
   getFriendPayments: (friendId: string) => Payment[];
-  cancelPayment: (id: string) => void;
+  cancelPayment: (id: string) => Promise<void>;
 
   listComments: (expenseId: string) => ExpenseComment[];
-  addComment: (expenseId: string, body: string) => void;
+  addComment: (expenseId: string, body: string) => Promise<void>;
 
   getActivityFeed: (groupId?: string) => ActivityItem[];
 };
@@ -107,46 +101,131 @@ type DataContextValue = {
 const DataContext = createContext<DataContextValue | null>(null);
 
 export function DataProvider({ children }: { children: React.ReactNode }) {
-  const [users, setUsers] = useState<User[]>(seedUsers);
-  const [groups, setGroups] = useState<Group[]>(seedGroups);
-  const [groupMembers, setGroupMembers] = useState<GroupMember[]>(seedGroupMembers);
-  const [expenses, setExpenses] = useState<Expense[]>(() => [
-    ...expandDueRecurringExpenses(seedExpenses),
-    ...seedExpenses,
-  ]);
-  const [payments, setPayments] = useState<Payment[]>(seedPayments);
+  const { userId, isAuthenticated } = useAuth();
+
+  const [users, setUsers] = useState<User[]>([]);
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [groupMembers, setGroupMembers] = useState<GroupMember[]>([]);
+  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [payments, setPayments] = useState<Payment[]>([]);
+  const [friendships, setFriendships] = useState<FriendshipRow[]>([]);
   const [comments, setComments] = useState<ExpenseComment[]>([]);
-  const [activity, setActivity] = useState<ActivityItem[]>(seedActivity);
-  const [invites, setInvites] = useState<{ code: string; groupId: string }[]>([]);
+  const [activity, setActivity] = useState<ActivityItem[]>([]);
+  const [ready, setReady] = useState(false);
 
-  const currentUser = users.find((u) => u.id === CURRENT_USER_ID)!;
+  // Each table's RLS policy already scopes rows to what the signed-in user
+  // can see, so "fetch everything" here really means "fetch everything this
+  // user is allowed to see" — no client-side filtering needed on top.
+  const fetchUsers = useCallback(async () => {
+    const { data } = await supabase.from("users").select("*");
+    if (data) setUsers(data.map(mapUser));
+  }, []);
+  const fetchGroups = useCallback(async () => {
+    const { data } = await supabase.from("groups").select("*");
+    if (data) setGroups(data.map(mapGroup));
+  }, []);
+  const fetchGroupMembers = useCallback(async () => {
+    const { data } = await supabase.from("group_members").select("*");
+    if (data) setGroupMembers(data.map(mapGroupMember));
+  }, []);
+  const fetchExpenses = useCallback(async () => {
+    const { data } = await supabase.from("expenses").select("*, expense_shares(*)");
+    if (data) setExpenses(data.map(mapExpense));
+  }, []);
+  const fetchPayments = useCallback(async () => {
+    const { data } = await supabase.from("payments").select("*");
+    if (data) setPayments(data.map(mapPayment));
+  }, []);
+  const fetchFriendships = useCallback(async () => {
+    const { data } = await supabase.from("friendships").select("*");
+    if (data) setFriendships(data.map(mapFriendship));
+  }, []);
+  const fetchComments = useCallback(async () => {
+    const { data } = await supabase.from("expense_comments").select("*");
+    if (data) setComments(data.map(mapComment));
+  }, []);
+  const fetchActivity = useCallback(async () => {
+    const { data } = await supabase.from("activity_items").select("*").order("created_at", { ascending: false }).limit(200);
+    if (data) setActivity(data.map(mapActivity));
+  }, []);
 
-  const logActivity = useCallback(
-    (entry: Omit<ActivityItem, "id" | "createdAt">) => {
-      setActivity((prev) => [
-        { ...entry, id: makeId("a"), createdAt: new Date().toISOString() },
-        ...prev,
-      ]);
-    },
-    []
-  );
+  // Initial load, and a full refetch of everything whenever a realtime
+  // change lands — simpler and safer than hand-patching every table's local
+  // state from a partial change payload, at the cost of an extra round trip
+  // per change. Fine at this app's scale.
+  const refetchAll = useCallback(async () => {
+    await Promise.all([
+      fetchUsers(),
+      fetchGroups(),
+      fetchGroupMembers(),
+      fetchExpenses(),
+      fetchPayments(),
+      fetchFriendships(),
+      fetchComments(),
+      fetchActivity(),
+    ]);
+  }, [fetchUsers, fetchGroups, fetchGroupMembers, fetchExpenses, fetchPayments, fetchFriendships, fetchComments, fetchActivity]);
+
+  useEffect(() => {
+    // Signing out (userId -> null) doesn't need its own setState here — the
+    // previous run's cleanup below already reset "ready" when it tore down.
+    if (!isAuthenticated || !userId) return;
+    // No setReady(false) needed here: it starts false and the previous
+    // run's cleanup already resets it to false before this one starts.
+    let cancelled = false;
+    async function load() {
+      await refetchAll();
+      if (!cancelled) setReady(true);
+    }
+    load();
+
+    // Realtime: any insert/update/delete on these tables (from this user, a
+    // groupmate, or a friend — RLS still applies to what the subscription
+    // can see) triggers a full refetch, so changes made by other users show
+    // up here without a manual reload.
+    const channel = supabase
+      .channel("tabmate-changes")
+      .on("postgres_changes", { event: "*", schema: "public", table: "expenses" }, () => refetchAll())
+      .on("postgres_changes", { event: "*", schema: "public", table: "expense_shares" }, () => refetchAll())
+      .on("postgres_changes", { event: "*", schema: "public", table: "payments" }, () => refetchAll())
+      .on("postgres_changes", { event: "*", schema: "public", table: "group_members" }, () => refetchAll())
+      .on("postgres_changes", { event: "*", schema: "public", table: "groups" }, () => refetchAll())
+      .on("postgres_changes", { event: "*", schema: "public", table: "friendships" }, () => refetchAll())
+      .on("postgres_changes", { event: "*", schema: "public", table: "expense_comments" }, () => refetchAll())
+      .on("postgres_changes", { event: "*", schema: "public", table: "activity_items" }, () => refetchAll())
+      .subscribe();
+
+    return () => {
+      cancelled = true;
+      setReady(false);
+      supabase.removeChannel(channel);
+    };
+  }, [isAuthenticated, userId, refetchAll]);
+
+  const currentUser = users.find((u) => u.id === userId);
 
   const getUser = useCallback((id: string) => users.find((u) => u.id === id), [users]);
+
   const updateCurrentUser = useCallback(
-    (patch: Partial<Pick<User, "name" | "defaultCurrency">>) =>
-      setUsers((prev) => prev.map((u) => (u.id === CURRENT_USER_ID ? { ...u, ...patch } : u))),
-    []
+    async (patch: Partial<Pick<User, "name" | "defaultCurrency">>) => {
+      if (!userId) return;
+      await supabase
+        .from("users")
+        .update({ name: patch.name, default_currency: patch.defaultCurrency })
+        .eq("id", userId);
+      await fetchUsers();
+    },
+    [userId, fetchUsers]
   );
+
   const getGroup = useCallback((id: string) => groups.find((g) => g.id === id), [groups]);
 
   const listMyGroups = useCallback(
     () =>
       groups.filter(
-        (g) =>
-          !g.deletedAt &&
-          groupMembers.some((m) => m.groupId === g.id && m.userId === CURRENT_USER_ID && !m.leftAt)
+        (g) => !g.deletedAt && groupMembers.some((m) => m.groupId === g.id && m.userId === userId && !m.leftAt)
       ),
-    [groups, groupMembers]
+    [groups, groupMembers, userId]
   );
 
   const listGroupMembers = useCallback(
@@ -158,29 +237,50 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     [groupMembers, getUser]
   );
 
-  // "Friends" = anyone you share a group with, or share a non-group expense with.
   const listFriends = useCallback(() => {
     const ids = new Set<string>();
     for (const m of groupMembers) {
       if (m.leftAt) continue;
-      const myGroupIds = groupMembers
-        .filter((x) => x.userId === CURRENT_USER_ID && !x.leftAt)
-        .map((x) => x.groupId);
-      if (myGroupIds.includes(m.groupId) && m.userId !== CURRENT_USER_ID) ids.add(m.userId);
+      const myGroupIds = groupMembers.filter((x) => x.userId === userId && !x.leftAt).map((x) => x.groupId);
+      if (myGroupIds.includes(m.groupId) && m.userId !== userId) ids.add(m.userId);
     }
     for (const e of expenses) {
       if (!e.groupId && !e.deletedAt) {
-        for (const s of e.shares) if (s.userId !== CURRENT_USER_ID) ids.add(s.userId);
+        for (const s of e.shares) if (s.userId !== userId) ids.add(s.userId);
       }
     }
+    for (const f of friendships) {
+      if (f.userIdA === userId) ids.add(f.userIdB);
+      if (f.userIdB === userId) ids.add(f.userIdA);
+    }
     return [...ids].map((id) => getUser(id)).filter((u): u is User => !!u);
-  }, [groupMembers, expenses, getUser]);
+  }, [groupMembers, expenses, friendships, userId, getUser]);
+
+  const addFriendByEmail = useCallback(
+    async (email: string): Promise<User | "already-friends" | "self" | null> => {
+      const alreadyFriend = (id: string) =>
+        friendships.some((f) => (f.userIdA === userId && f.userIdB === id) || (f.userIdB === userId && f.userIdA === id));
+      const { data, error } = await supabase.rpc("add_friend_by_email", { p_email: email.trim() });
+      if (error) {
+        // The RPC raises for "cannot add yourself" — everything else (no
+        // match) comes back as data === null, not an error.
+        return "self";
+      }
+      if (!data) return null;
+      const user = mapUser(data as Record<string, unknown>);
+      if (alreadyFriend(user.id)) {
+        await fetchFriendships();
+        return "already-friends";
+      }
+      await fetchFriendships();
+      await fetchUsers();
+      return user;
+    },
+    [friendships, userId, fetchFriendships, fetchUsers]
+  );
 
   const getGroupExpenses = useCallback(
-    (groupId: string) =>
-      expenses
-        .filter((e) => e.groupId === groupId)
-        .sort((a, b) => b.expenseDate.localeCompare(a.expenseDate)),
+    (groupId: string) => expenses.filter((e) => e.groupId === groupId).sort((a, b) => b.expenseDate.localeCompare(a.expenseDate)),
     [expenses]
   );
 
@@ -189,24 +289,17 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const getFriendExpenses = useCallback(
     (friendId: string) =>
       expenses
-        .filter((e) => e.shares.some((s) => s.userId === friendId) && e.shares.some((s) => s.userId === CURRENT_USER_ID))
+        .filter((e) => e.shares.some((s) => s.userId === friendId) && e.shares.some((s) => s.userId === userId))
         .sort((a, b) => b.expenseDate.localeCompare(a.expenseDate)),
-    [expenses]
+    [expenses, userId]
   );
 
-  // Every expense the current user is part of, group or non-group — the
-  // search index. Same visibility rule as getTotalBalance: in a group they
-  // belong to, or a direct party to a non-group expense.
   const listMyExpenses = useCallback(() => {
     const myGroupIds = new Set(listMyGroups().map((g) => g.id));
     return expenses
-      .filter(
-        (e) =>
-          !e.deletedAt &&
-          (e.groupId ? myGroupIds.has(e.groupId) : e.shares.some((s) => s.userId === CURRENT_USER_ID))
-      )
+      .filter((e) => !e.deletedAt && (e.groupId ? myGroupIds.has(e.groupId) : e.shares.some((s) => s.userId === userId)))
       .sort((a, b) => b.expenseDate.localeCompare(a.expenseDate));
-  }, [expenses, listMyGroups]);
+  }, [expenses, listMyGroups, userId]);
 
   const getGroupBalances = useCallback(
     (groupId: string) => {
@@ -219,204 +312,195 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     [expenses, payments, getGroup]
   );
 
-  const getSimplifiedTransfers = useCallback(
-    (groupId: string) => simplifyDebts(getGroupBalances(groupId)),
-    [getGroupBalances]
-  );
+  const getSimplifiedTransfers = useCallback((groupId: string) => simplifyDebts(getGroupBalances(groupId)), [getGroupBalances]);
 
   const getFriendBalance = useCallback(
     (friendId: string) => {
       let net = 0;
       for (const e of getFriendExpenses(friendId)) {
         if (e.deletedAt) continue;
-        const mine = e.shares.find((s) => s.userId === CURRENT_USER_ID);
+        const mine = e.shares.find((s) => s.userId === userId);
         const theirs = e.shares.find((s) => s.userId === friendId);
         if (!mine || !theirs) continue;
         const iPaid = mine.paidCents > 0;
         const theyPaid = theirs.paidCents > 0;
-        // Every expense here has exactly one payer (our data model doesn't
-        // support multi-payer yet). Only count expenses where one of the two
-        // of us is that payer — a third person's expense creates debts
-        // toward THEM, not between us, so it's excluded from this pair.
         if (iPaid && !theyPaid) net += theirs.owedCents;
         else if (theyPaid && !iPaid) net -= mine.owedCents;
       }
       for (const p of payments) {
         if (p.status !== "confirmed") continue;
-        if (p.fromUserId === CURRENT_USER_ID && p.toUserId === friendId) net += p.amountCents;
-        if (p.toUserId === CURRENT_USER_ID && p.fromUserId === friendId) net -= p.amountCents;
+        if (p.fromUserId === userId && p.toUserId === friendId) net += p.amountCents;
+        if (p.toUserId === userId && p.fromUserId === friendId) net -= p.amountCents;
       }
       return net;
     },
-    [getFriendExpenses, payments]
+    [getFriendExpenses, payments, userId]
   );
 
   const getTotalBalance = useCallback(() => {
     const groupTotal = listMyGroups().reduce((sum, g) => {
-      const mine = getGroupBalances(g.id).find((b) => b.userId === CURRENT_USER_ID);
+      const mine = getGroupBalances(g.id).find((b) => b.userId === userId);
       return sum + (mine?.balanceCents ?? 0);
     }, 0);
-
-    // Non-group (friend-only) expenses and payments never belong to any
-    // group, so they're invisible to the loop above — without this, a
-    // user's one-off expenses with friends silently vanish from their
-    // account-wide balance.
     const nonGroupExpenseTotal = expenses.reduce((sum, e) => {
       if (e.groupId || e.deletedAt) return sum;
-      const mine = e.shares.find((s) => s.userId === CURRENT_USER_ID);
+      const mine = e.shares.find((s) => s.userId === userId);
       return sum + (mine ? mine.paidCents - mine.owedCents : 0);
     }, 0);
     const nonGroupPaymentTotal = payments.reduce((sum, p) => {
       if (p.groupId || p.status !== "confirmed") return sum;
-      if (p.fromUserId === CURRENT_USER_ID) return sum + p.amountCents;
-      if (p.toUserId === CURRENT_USER_ID) return sum - p.amountCents;
+      if (p.fromUserId === userId) return sum + p.amountCents;
+      if (p.toUserId === userId) return sum - p.amountCents;
       return sum;
     }, 0);
-
     return groupTotal + nonGroupExpenseTotal + nonGroupPaymentTotal;
-  }, [listMyGroups, getGroupBalances, expenses, payments]);
+  }, [listMyGroups, getGroupBalances, expenses, payments, userId]);
 
   const createGroup = useCallback(
-    (name: string, memberIds: string[]) => {
-      const group: Group = {
-        id: makeId("g"),
-        name,
-        defaultCurrency: currentUser.defaultCurrency,
-        simplifyDebts: true,
-        createdBy: CURRENT_USER_ID,
-        createdAt: new Date().toISOString(),
-      };
-      setGroups((prev) => [...prev, group]);
-      const members: GroupMember[] = [CURRENT_USER_ID, ...memberIds].map((userId) => ({
-        groupId: group.id,
-        userId,
-        joinedAt: new Date().toISOString(),
-      }));
-      setGroupMembers((prev) => [...prev, ...members]);
-      logActivity({ actorUserId: CURRENT_USER_ID, groupId: group.id, type: "group_updated", refId: group.id, metadata: { description: `Created ${name}` } });
+    async (name: string, memberIds: string[]) => {
+      const { data, error } = await supabase.rpc("create_group", { p_name: name });
+      if (error || !data) throw new Error(error?.message ?? "Failed to create group");
+      const group = mapGroup(data as Record<string, unknown>);
+      if (memberIds.length > 0) {
+        await supabase.from("group_members").insert(memberIds.map((id) => ({ group_id: group.id, user_id: id })));
+      }
+      await Promise.all([fetchGroups(), fetchGroupMembers()]);
       return group;
     },
-    [currentUser, logActivity]
+    [fetchGroups, fetchGroupMembers]
   );
 
-  const updateGroup = useCallback((id: string, patch: Partial<Pick<Group, "name" | "simplifyDebts">>) => {
-    setGroups((prev) => prev.map((g) => (g.id === id ? { ...g, ...patch } : g)));
-    logActivity({ actorUserId: CURRENT_USER_ID, groupId: id, type: "group_updated", refId: id, metadata: {} });
-  }, [logActivity]);
+  const updateGroup = useCallback(
+    async (id: string, patch: Partial<Pick<Group, "name" | "simplifyDebts">>) => {
+      await supabase
+        .from("groups")
+        .update({ name: patch.name, simplify_debts: patch.simplifyDebts })
+        .eq("id", id);
+      await fetchGroups();
+    },
+    [fetchGroups]
+  );
 
   const removeMember = useCallback(
-    (groupId: string, userId: string) => {
-      setGroupMembers((prev) =>
-        prev.map((m) => (m.groupId === groupId && m.userId === userId ? { ...m, leftAt: new Date().toISOString() } : m))
-      );
-      logActivity({ actorUserId: CURRENT_USER_ID, groupId, type: "member_left", refId: userId, metadata: {} });
+    async (groupId: string, memberId: string) => {
+      await supabase
+        .from("group_members")
+        .update({ left_at: new Date().toISOString() })
+        .eq("group_id", groupId)
+        .eq("user_id", memberId);
+      await fetchGroupMembers();
     },
-    [logActivity]
+    [fetchGroupMembers]
   );
 
-  const leaveGroup = useCallback((groupId: string) => removeMember(groupId, CURRENT_USER_ID), [removeMember]);
+  const leaveGroup = useCallback((groupId: string) => (userId ? removeMember(groupId, userId) : Promise.resolve()), [removeMember, userId]);
 
-  const createGroupInvite = useCallback((groupId: string) => {
-    const code = makeCode();
-    setInvites((prev) => [...prev, { code, groupId }]);
-    return code;
+  const createGroupInvite = useCallback(async (groupId: string) => {
+    const { data, error } = await supabase.rpc("create_group_invite", { p_group_id: groupId });
+    if (error || !data) throw new Error(error?.message ?? "Failed to create invite");
+    return data as string;
   }, []);
 
-  const previewGroupByCode = useCallback(
-    (code: string) => {
-      const invite = invites.find((i) => i.code === code.toUpperCase());
-      return invite ? getGroup(invite.groupId) ?? null : null;
-    },
-    [invites, getGroup]
-  );
+  const previewGroupByCode = useCallback(async (code: string) => {
+    const { data } = await supabase.rpc("preview_group_by_code", { p_code: code });
+    const row = (data as { group_id: string; name: string; cover_photo_url: string | null }[] | null)?.[0];
+    if (!row) return null;
+    return {
+      id: row.group_id,
+      name: row.name,
+      coverPhotoUrl: row.cover_photo_url ?? undefined,
+      defaultCurrency: "INR",
+      simplifyDebts: true,
+      createdBy: "",
+      createdAt: "",
+    } satisfies Group;
+  }, []);
 
   const joinGroupByCode = useCallback(
-    (code: string) => {
-      const invite = invites.find((i) => i.code === code.toUpperCase());
-      if (!invite) return null;
-      const group = getGroup(invite.groupId);
-      if (!group) return null;
-      const already = groupMembers.some((m) => m.groupId === group.id && m.userId === CURRENT_USER_ID && !m.leftAt);
-      if (!already) {
-        setGroupMembers((prev) => [...prev, { groupId: group.id, userId: CURRENT_USER_ID, joinedAt: new Date().toISOString() }]);
-        logActivity({ actorUserId: CURRENT_USER_ID, groupId: group.id, type: "member_joined", refId: CURRENT_USER_ID, metadata: {} });
-      }
+    async (code: string) => {
+      const { data, error } = await supabase.rpc("join_group", { p_code: code });
+      if (error || !data) return null;
+      const group = mapGroup(data as Record<string, unknown>);
+      await Promise.all([fetchGroups(), fetchGroupMembers()]);
       return group;
     },
-    [invites, groupMembers, getGroup, logActivity]
+    [fetchGroups, fetchGroupMembers]
   );
 
   const createExpense = useCallback(
-    (input: NewExpenseInput) => {
-      const expense: Expense = {
-        id: makeId("e"),
-        groupId: input.groupId,
+    async (input: NewExpenseInput) => {
+      const payload = {
+        group_id: input.groupId ?? null,
         description: input.description,
-        amountCents: input.amountCents,
-        currencyCode: input.currencyCode,
+        amount_cents: input.amountCents,
+        currency_code: input.currencyCode,
         category: input.category,
-        expenseDate: input.expenseDate,
-        splitType: input.splitType,
-        repeatInterval: input.repeatInterval ?? "none",
-        createdBy: CURRENT_USER_ID,
+        expense_date: input.expenseDate,
+        split_type: input.splitType,
+        repeat_interval: input.repeatInterval ?? "none",
         shares: input.owedBy.map((o) => ({
-          userId: o.userId,
-          owedCents: o.owedCents,
-          paidCents: input.paidBy.find((p) => p.userId === o.userId)?.amountCents ?? 0,
+          user_id: o.userId,
+          owed_cents: o.owedCents,
+          paid_cents: input.paidBy.find((p) => p.userId === o.userId)?.amountCents ?? 0,
         })),
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
       };
-      setExpenses((prev) => [expense, ...prev]);
-      logActivity({ actorUserId: CURRENT_USER_ID, groupId: input.groupId, type: "expense_added", refId: expense.id, metadata: { description: input.description } });
-      return expense;
+      const { data, error } = await supabase.rpc("create_expense", { payload });
+      if (error || !data) throw new Error(error?.message ?? "Failed to add expense");
+      await Promise.all([fetchExpenses(), fetchFriendships(), fetchActivity()]);
+      return mapExpense(data as Record<string, unknown>);
     },
-    [logActivity]
+    [fetchExpenses, fetchFriendships, fetchActivity]
   );
 
-  const updateExpense = useCallback((id: string, patch: Partial<Expense>) => {
-    setExpenses((prev) => prev.map((e) => (e.id === id ? { ...e, ...patch, updatedAt: new Date().toISOString() } : e)));
-  }, []);
+  const updateExpense = useCallback(
+    async (id: string, patch: Partial<Expense>) => {
+      const payload: Record<string, unknown> = {};
+      if (patch.description !== undefined) payload.description = patch.description;
+      if (patch.amountCents !== undefined) payload.amount_cents = patch.amountCents;
+      if (patch.category !== undefined) payload.category = patch.category;
+      if (patch.splitType !== undefined) payload.split_type = patch.splitType;
+      if (patch.repeatInterval !== undefined) payload.repeat_interval = patch.repeatInterval;
+      if (patch.shares !== undefined) {
+        payload.shares = patch.shares.map((s) => ({ user_id: s.userId, owed_cents: s.owedCents, paid_cents: s.paidCents }));
+      }
+      const { error } = await supabase.rpc("update_expense", { p_id: id, payload });
+      if (error) throw new Error(error.message);
+      await fetchExpenses();
+    },
+    [fetchExpenses]
+  );
 
   const softDeleteExpense = useCallback(
-    (id: string) => {
-      updateExpense(id, { deletedAt: new Date().toISOString() });
-      const e = expenses.find((x) => x.id === id);
-      logActivity({ actorUserId: CURRENT_USER_ID, groupId: e?.groupId, type: "expense_deleted", refId: id, metadata: { description: e?.description ?? "" } });
+    async (id: string) => {
+      await supabase.from("expenses").update({ deleted_at: new Date().toISOString() }).eq("id", id);
+      await fetchExpenses();
     },
-    [updateExpense, expenses, logActivity]
+    [fetchExpenses]
   );
 
-  const restoreExpense = useCallback((id: string) => updateExpense(id, { deletedAt: undefined }), [updateExpense]);
+  const restoreExpense = useCallback(
+    async (id: string) => {
+      await supabase.from("expenses").update({ deleted_at: null }).eq("id", id);
+      await fetchExpenses();
+    },
+    [fetchExpenses]
+  );
 
   const createPayment = useCallback(
-    (input: NewPaymentInput) => {
-      const fromUserId = input.fromUserId ?? CURRENT_USER_ID;
-      const payment: Payment = {
-        id: makeId("p"),
-        groupId: input.groupId,
-        fromUserId,
-        toUserId: input.toUserId,
-        amountCents: input.amountCents,
-        currencyCode: input.currencyCode,
-        status: "confirmed",
-        createdAt: new Date().toISOString(),
-      };
-      setPayments((prev) => [payment, ...prev]);
-      const otherPartyId = fromUserId === CURRENT_USER_ID ? input.toUserId : fromUserId;
-      const otherPartyName = getUser(otherPartyId)?.name ?? "";
-      logActivity({
-        actorUserId: CURRENT_USER_ID,
-        groupId: input.groupId,
-        type: "payment_recorded",
-        refId: payment.id,
-        metadata: {
-          description: fromUserId === CURRENT_USER_ID ? `Paid ${otherPartyName}` : `${otherPartyName} paid you`,
-        },
+    async (input: NewPaymentInput) => {
+      const fromUserId = input.fromUserId ?? userId;
+      const { data, error } = await supabase.rpc("create_payment", {
+        p_group_id: input.groupId ?? null,
+        p_from_user_id: fromUserId,
+        p_to_user_id: input.toUserId,
+        p_amount_cents: input.amountCents,
+        p_currency_code: input.currencyCode,
       });
-      return payment;
+      if (error || !data) throw new Error(error?.message ?? "Failed to record payment");
+      await Promise.all([fetchPayments(), fetchActivity()]);
+      return mapPayment(data as Record<string, unknown>);
     },
-    [logActivity, getUser]
+    [userId, fetchPayments, fetchActivity]
   );
 
   const getPayment = useCallback((id: string) => payments.find((p) => p.id === id), [payments]);
@@ -424,32 +508,18 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const getFriendPayments = useCallback(
     (friendId: string) =>
       payments
-        .filter(
-          (p) =>
-            (p.fromUserId === friendId && p.toUserId === CURRENT_USER_ID) ||
-            (p.fromUserId === CURRENT_USER_ID && p.toUserId === friendId)
-        )
+        .filter((p) => (p.fromUserId === friendId && p.toUserId === userId) || (p.fromUserId === userId && p.toUserId === friendId))
         .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
-    [payments]
+    [payments, userId]
   );
 
   const cancelPayment = useCallback(
-    (id: string) => {
-      setPayments((prev) => prev.map((p) => (p.id === id ? { ...p, status: "cancelled" } : p)));
-      const p = payments.find((x) => x.id === id);
-      const otherPartyId = p ? (p.fromUserId === CURRENT_USER_ID ? p.toUserId : p.fromUserId) : undefined;
-      const otherPartyName = otherPartyId ? getUser(otherPartyId)?.name ?? "" : "";
-      if (p) {
-        logActivity({
-          actorUserId: CURRENT_USER_ID,
-          groupId: p.groupId,
-          type: "payment_recorded",
-          refId: p.id,
-          metadata: { description: `Cancelled a payment with ${otherPartyName}` },
-        });
-      }
+    async (id: string) => {
+      const { error } = await supabase.rpc("cancel_payment", { p_id: id });
+      if (error) throw new Error(error.message);
+      await Promise.all([fetchPayments(), fetchActivity()]);
     },
-    [payments, getUser, logActivity]
+    [fetchPayments, fetchActivity]
   );
 
   const listComments = useCallback(
@@ -458,25 +528,22 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   );
 
   const addComment = useCallback(
-    (expenseId: string, body: string) => {
-      const comment: ExpenseComment = { id: makeId("c"), expenseId, userId: CURRENT_USER_ID, body, createdAt: new Date().toISOString() };
-      setComments((prev) => [...prev, comment]);
-      const e = expenses.find((x) => x.id === expenseId);
-      logActivity({ actorUserId: CURRENT_USER_ID, groupId: e?.groupId, type: "comment_added", refId: expenseId, metadata: { description: body.slice(0, 40) } });
+    async (expenseId: string, body: string) => {
+      if (!userId) return;
+      await supabase.from("expense_comments").insert({ expense_id: expenseId, user_id: userId, body });
+      await Promise.all([fetchComments(), fetchActivity()]);
     },
-    [expenses, logActivity]
+    [userId, fetchComments, fetchActivity]
   );
 
   const getActivityFeed = useCallback(
-    (groupId?: string) =>
-      activity
-        .filter((a) => (groupId ? a.groupId === groupId : true))
-        .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+    (groupId?: string) => activity.filter((a) => (groupId ? a.groupId === groupId : true)).sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
     [activity]
   );
 
-  const value = useMemo<DataContextValue>(
-    () => ({
+  const value = useMemo<DataContextValue | null>(() => {
+    if (!currentUser) return null;
+    return {
       currentUser,
       users,
       groups,
@@ -487,6 +554,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       listMyGroups,
       listGroupMembers,
       listFriends,
+      addFriendByEmail,
       getGroupExpenses,
       getExpense,
       getFriendExpenses,
@@ -513,46 +581,59 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       listComments,
       addComment,
       getActivityFeed,
-    }),
-    [
-      currentUser,
-      users,
-      groups,
-      groupMembers,
-      getUser,
-      updateCurrentUser,
-      getGroup,
-      listMyGroups,
-      listGroupMembers,
-      listFriends,
-      getGroupExpenses,
-      getExpense,
-      getFriendExpenses,
-      listMyExpenses,
-      getGroupBalances,
-      getSimplifiedTransfers,
-      getFriendBalance,
-      getTotalBalance,
-      createGroup,
-      updateGroup,
-      removeMember,
-      leaveGroup,
-      createGroupInvite,
-      joinGroupByCode,
-      previewGroupByCode,
-      createExpense,
-      updateExpense,
-      softDeleteExpense,
-      restoreExpense,
-      createPayment,
-      getPayment,
-      getFriendPayments,
-      cancelPayment,
-      listComments,
-      addComment,
-      getActivityFeed,
-    ]
-  );
+    };
+  }, [
+    currentUser,
+    users,
+    groups,
+    groupMembers,
+    getUser,
+    updateCurrentUser,
+    getGroup,
+    listMyGroups,
+    listGroupMembers,
+    listFriends,
+    addFriendByEmail,
+    getGroupExpenses,
+    getExpense,
+    getFriendExpenses,
+    listMyExpenses,
+    getGroupBalances,
+    getSimplifiedTransfers,
+    getFriendBalance,
+    getTotalBalance,
+    createGroup,
+    updateGroup,
+    removeMember,
+    leaveGroup,
+    createGroupInvite,
+    joinGroupByCode,
+    previewGroupByCode,
+    createExpense,
+    updateExpense,
+    softDeleteExpense,
+    restoreExpense,
+    createPayment,
+    getPayment,
+    getFriendPayments,
+    cancelPayment,
+    listComments,
+    addComment,
+    getActivityFeed,
+  ]);
+
+  // Screens that call useData() assume currentUser is always defined (true
+  // throughout this app's history on the fake layer) — rather than touch
+  // every call site to handle "not loaded yet", block rendering children
+  // until the first real fetch resolves and the user's own row is in cache.
+  if (!isAuthenticated) return <>{children}</>;
+  if (!ready || !value) {
+    return (
+      <View className="flex-1 items-center justify-center bg-bg">
+        <ActivityIndicator color="#5b5fef" />
+      </View>
+    );
+  }
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
 }

@@ -13,20 +13,42 @@ export default function SignUp() {
   const { signUp, signInWithGoogle } = useAuth();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | undefined>();
   const [loading, setLoading] = useState(false);
+  const [checkEmail, setCheckEmail] = useState(false);
 
   const submit = async () => {
-    if (!name.trim() || !email.includes("@")) {
-      setError("Enter your name and a valid email to continue.");
+    if (!name.trim() || !email.includes("@") || password.length < 6) {
+      setError("Enter your name, a valid email, and a password of at least 6 characters.");
       return;
     }
     setError(undefined);
     setLoading(true);
-    await signUp(name);
+    const result = await signUp(name.trim(), email.trim(), password);
     setLoading(false);
+    if (result === "confirm-email") {
+      setCheckEmail(true);
+      return;
+    }
+    if (result) {
+      setError(result);
+      return;
+    }
     router.replace("/(tabs)");
   };
+
+  if (checkEmail) {
+    return (
+      <SafeAreaView className="flex-1 items-center justify-center gap-3 bg-bg p-6">
+        <Text className="font-display text-xl text-text">Check your email</Text>
+        <Text className="text-center font-sans text-sm text-muted">
+          We sent a confirmation link to {email}. Tap it, then come back and log in.
+        </Text>
+        <Button label="Back to login" variant="secondary" onPress={() => router.replace("/login")} />
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView className="flex-1 bg-bg">
@@ -41,6 +63,13 @@ export default function SignUp() {
           onChangeText={setEmail}
           autoCapitalize="none"
           keyboardType="email-address"
+        />
+        <Input
+          label="Password"
+          placeholder="At least 6 characters"
+          value={password}
+          onChangeText={setPassword}
+          secureTextEntry
           error={error}
         />
 
@@ -57,8 +86,12 @@ export default function SignUp() {
           variant="secondary"
           size="lg"
           onPress={async () => {
-            await signInWithGoogle();
-            router.replace("/(tabs)");
+            // On success this redirects the browser to Google — there's
+            // nothing to navigate to afterward here. An error (e.g. Google
+            // isn't configured as an auth provider yet) resolves instead of
+            // redirecting, so it's safe to just show it.
+            const err = await signInWithGoogle();
+            if (err) setError(err);
           }}
         />
 

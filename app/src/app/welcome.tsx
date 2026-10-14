@@ -7,8 +7,9 @@ import { useAuth } from "@/lib/auth";
 
 // S01 — Welcome / splash
 export default function Welcome() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, loading } = useAuth();
   const router = useRouter();
+  if (loading) return null;
   if (isAuthenticated) return <Redirect href="/(tabs)" />;
 
   return (

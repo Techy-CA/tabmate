@@ -31,6 +31,8 @@ export default function SettleUp() {
 
   const [amountText, setAmountText] = useState((suggestedCents / 100).toFixed(2));
   const [done, setDone] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | undefined>();
   const [doneProgress] = useState(() => new Animated.Value(0));
 
   useEffect(() => {
@@ -44,14 +46,25 @@ export default function SettleUp() {
 
   const fallbackHref = groupId ? (`/group/${groupId}` as const) : (`/friend/${counterpartId}` as const);
 
-  const confirm = () => {
-    createPayment({
-      groupId,
-      fromUserId: iOwe ? currentUser.id : counterpart.id,
-      toUserId: iOwe ? counterpart.id : currentUser.id,
-      amountCents,
-      currencyCode: "INR",
-    });
+  const confirm = async () => {
+    // Only shows the success screen once the payment is actually saved — a
+    // real financial action, so "setDone" can't fire ahead of confirmation.
+    setSaving(true);
+    setSaveError(undefined);
+    try {
+      await createPayment({
+        groupId,
+        fromUserId: iOwe ? currentUser.id : counterpart.id,
+        toUserId: iOwe ? counterpart.id : currentUser.id,
+        amountCents,
+        currencyCode: "INR",
+      });
+    } catch {
+      setSaving(false);
+      setSaveError("Couldn't save that — check your connection and try again.");
+      return;
+    }
+    setSaving(false);
     setDone(true);
   };
 
@@ -59,22 +72,28 @@ export default function SettleUp() {
     const scale = doneProgress.interpolate({ inputRange: [0, 1], outputRange: [0.85, 1] });
     return (
       <SafeAreaView className="flex-1 items-center justify-center bg-bg p-6">
-        <Animated.View
-          className="w-full items-center gap-6"
-          style={{ opacity: doneProgress, transform: [{ scale }] }}
-        >
-          <View className="h-20 w-20 items-center justify-center rounded-pill bg-success/10">
-            <Feather name="check" size={36} color="#15803d" />
+        {/* The Animated.View carries style only, never className: mixing an
+            animated inline style with a NativeWind className on the same
+            Animated.View drops utility classes unpredictably on web (the
+            same issue already fixed once in Toggle.tsx) — here it silently
+            dropped "items-center", so every child fell back to flexbox's
+            default stretch/left-alignment instead of centering. All layout
+            classes live on the plain View one level in instead. */}
+        <Animated.View style={{ opacity: doneProgress, transform: [{ scale }] }}>
+          <View className="items-center gap-6">
+            <View className="h-20 w-20 items-center justify-center rounded-pill bg-success/10">
+              <Feather name="check" size={36} color="#15803d" />
+            </View>
+
+            <View className="items-center gap-1">
+              <Text className="font-display text-xl text-text">All squared away</Text>
+              <Text className="font-sans text-sm text-muted">with {counterpart.name}</Text>
+            </View>
+
+            <Text className="font-display text-display text-success">{formatCents(amountCents, "INR")}</Text>
+
+            <Button label="Done" onPress={() => goBack(router, fallbackHref)} />
           </View>
-
-          <View className="items-center gap-1">
-            <Text className="font-display text-xl text-text">All squared away</Text>
-            <Text className="font-sans text-sm text-muted">with {counterpart.name}</Text>
-          </View>
-
-          <Text className="font-display text-display text-success">{formatCents(amountCents, "INR")}</Text>
-
-          <Button label="Done" size="lg" onPress={() => goBack(router, fallbackHref)} />
         </Animated.View>
       </SafeAreaView>
     );
@@ -104,7 +123,8 @@ export default function SettleUp() {
             : `This just logs that ${counterpart.name} paid you outside the app. Tabmate doesn't move any money itself.`}
         </Text>
 
-        <Button label="Confirm" size="lg" disabled={amountCents <= 0} onPress={confirm} />
+        {saveError ? <Text className="font-sans text-sm text-danger">{saveError}</Text> : null}
+        <Button label="Confirm" size="lg" disabled={amountCents <= 0} loading={saving} onPress={confirm} />
       </View>
     </SafeAreaView>
   );

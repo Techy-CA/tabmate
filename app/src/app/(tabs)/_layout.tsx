@@ -4,7 +4,11 @@ import { Redirect, Tabs } from "expo-router";
 import { useAuth } from "@/lib/auth";
 
 export default function TabsLayout() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, loading } = useAuth();
+  // Supabase's getSession() is async — isAuthenticated starts false until it
+  // resolves, so redirecting on that alone would bounce an actually-logged-in
+  // user back to /welcome on every refresh during that brief window.
+  if (loading) return null;
   if (!isAuthenticated) return <Redirect href="/welcome" />;
 
   return (

@@ -7,6 +7,7 @@ import { useEffect } from "react";
 import * as SplashScreen from "expo-splash-screen";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
+import { ConfirmDialogHost } from "@/components/ConfirmDialogHost";
 import { AuthProvider } from "@/lib/auth";
 import { DataProvider } from "@/lib/data/store";
 
@@ -28,6 +29,7 @@ export default function RootLayout() {
       <AuthProvider>
         <DataProvider>
           <Stack screenOptions={{ headerShown: false }} />
+          <ConfirmDialogHost />
         </DataProvider>
       </AuthProvider>
     </SafeAreaProvider>

@@ -85,7 +85,7 @@ export default function AddExpense() {
     });
   };
 
-  const submit = () => {
+  const submit = async () => {
     if (!description.trim() || amountCents <= 0) {
       setError("Add a description and an amount greater than zero.");
       return;
@@ -100,7 +100,7 @@ export default function AddExpense() {
     }
 
     if (editing) {
-      updateExpense(editing.id, {
+      await updateExpense(editing.id, {
         description: description.trim(),
         amountCents,
         category,
@@ -116,7 +116,7 @@ export default function AddExpense() {
       return;
     }
 
-    createExpense({
+    await createExpense({
       groupId,
       description: description.trim(),
       amountCents,

@@ -28,12 +28,12 @@ export default function CreateGroup() {
     });
   };
 
-  const submit = () => {
+  const submit = async () => {
     if (!name.trim()) {
       setError("Give your group a name.");
       return;
     }
-    const group = createGroup(name.trim(), [...selected]);
+    const group = await createGroup(name.trim(), [...selected]);
     router.replace(`/group/${group.id}`);
   };
 
