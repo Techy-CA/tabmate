@@ -25,7 +25,7 @@ test.describe("split types", () => {
     await page.getByLabel("Amount for you").fill("60");
     await page.getByLabel("Amount for Dev Malhotra").fill("40");
     await expect(page.getByText("Splits add up to 100%.")).toBeVisible();
-    await page.getByRole("button", { name: "Save expense" }).click();
+    await page.getByRole("button", { name: "Add to the tab" }).click();
 
     await page.getByRole("button", { name: /Internet upgrade,/ }).click();
     await expect(page.getByText("paid ₹1,000 · owes ₹600")).toBeVisible();
@@ -40,7 +40,7 @@ test.describe("split types", () => {
     await page.getByLabel("Amount for you").fill("1");
     await page.getByLabel("Amount for Dev Malhotra").fill("2");
     await page.getByLabel(/Amount for Ayaan/).fill("1");
-    await page.getByRole("button", { name: "Save expense" }).click();
+    await page.getByRole("button", { name: "Add to the tab" }).click();
 
     await page.getByRole("button", { name: /Taxi to airport,/ }).click();
     await expect(page.getByText("paid ₹800 · owes ₹200")).toBeVisible();
@@ -57,7 +57,7 @@ test.describe("split types", () => {
     await page.getByRole("button", { name: /^Split equally/ }).click();
     await page.getByRole("tab", { name: "Adjust" }).click();
     await page.getByLabel("Amount for Dev Malhotra").fill("300");
-    await page.getByRole("button", { name: "Save expense" }).click();
+    await page.getByRole("button", { name: "Add to the tab" }).click();
 
     await page.getByRole("button", { name: /Cleaning supplies,/ }).click();
     await expect(page.getByText("paid ₹900 · owes ₹200")).toBeVisible();

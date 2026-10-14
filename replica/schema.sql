@@ -1,4 +1,4 @@
--- Splitsy (working name) — initial schema
+-- Tabmate (working name) — initial schema
 -- Postgres on Supabase. Money is always integer minor units (cents/paise) + a currency code.
 -- All timestamps are timestamptz in UTC. RLS is enabled on every table; policies noted per-table.
 

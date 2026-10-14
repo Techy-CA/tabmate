@@ -15,7 +15,7 @@ test("F02-H1 recording a received payment (friend owes current user)", async ({ 
   await expect(page.getByLabel("Amount")).toHaveValue("23533.33");
 
   await page.getByRole("button", { name: "Confirm" }).click();
-  await expect(page.getByText("Payment recorded")).toBeVisible();
+  await expect(page.getByText("All squared away")).toBeVisible();
 
   await page.getByRole("button", { name: "Done" }).click();
   await expect(page).toHaveURL(/\/group\/g-flat$/);

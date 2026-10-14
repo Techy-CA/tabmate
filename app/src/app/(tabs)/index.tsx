@@ -19,7 +19,7 @@ export default function Home() {
   return (
     <SafeAreaView className="flex-1 bg-bg" edges={["top"]}>
       <View className="flex-row items-center justify-between px-6 pb-2 pt-4">
-        <Text className="font-display text-xl text-text">Hi, {currentUser.name}</Text>
+        <Text className="font-display text-xl text-text">Hey, {currentUser.name}</Text>
         <View className="flex-row gap-3">
           <Pressable
             accessibilityRole="button"
@@ -46,8 +46,8 @@ export default function Home() {
           {groups.length === 0 ? (
             <EmptyState
               icon="users"
-              title="No groups yet"
-              body="Create a group for a trip, a flat or anything you split often."
+              title="No tabs open yet"
+              body="Start one for a trip, a flat, or anything you split often."
             />
           ) : (
             groups.map((g) => {

@@ -34,7 +34,7 @@ export default function GroupSettings() {
     // chat, not just via whatever the OS share sheet offers.
     setInviteCode(code);
     try {
-      await Share.share({ message: `Join "${group.name}" on Splitsy — invite code: ${code}` });
+      await Share.share({ message: `Join "${group.name}" on Tabmate — invite code: ${code}` });
     } catch {
       // Share is unavailable (e.g. the web preview) — the on-screen code above is the fallback.
     }

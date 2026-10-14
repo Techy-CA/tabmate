@@ -53,7 +53,7 @@ export default function SettleUp() {
       <SafeAreaView className="flex-1 items-center justify-center gap-4 bg-bg p-6">
         <Feather name="check-circle" size={48} color="#15803d" />
         <Text className="font-display text-lg text-text">
-          {!iOwe ? "Payment recorded" : method === "manual" ? "Payment recorded" : "Payment link sent"}
+          {!iOwe ? "All squared away" : method === "manual" ? "All squared away" : "Payment link sent"}
         </Text>
         <Text className="text-center font-sans text-sm text-muted">
           {formatCents(amountCents, "INR")} with {counterpart.name}

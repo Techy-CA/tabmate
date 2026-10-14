@@ -1,4 +1,4 @@
-# Parity report: Splitsy vs Splitwise
+# Parity report: Tabmate vs Splitwise
 
 Date: 2026-10-14 (revised after a second `/replica-test` pass)  Source: `replica/features.csv` (34 rows, 28 scored)
 Generator: `python3 ~/.claude/skills/replica-diff/parity.py replica/features.csv --markdown`

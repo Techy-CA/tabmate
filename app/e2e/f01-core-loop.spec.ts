@@ -20,7 +20,7 @@ test.describe("F01 core loop", () => {
     await page.goto("/signup");
     await page.getByLabel("Your name").fill("Test User");
     await page.getByLabel("Email").fill("newuser@example.test");
-    await page.getByRole("button", { name: "Sign me up" }).click();
+    await page.getByRole("button", { name: "Count me in" }).click();
     await page.waitForURL("/");
 
     await expect(page.getByText("Indiranagar Flat")).toBeVisible();
@@ -47,7 +47,7 @@ test.describe("F01 core loop", () => {
     await page.getByRole("button", { name: "Add expense to this group" }).click();
     await page.getByLabel("Description").fill("Pizza night");
     await page.getByLabel("Amount").fill("900");
-    await page.getByRole("button", { name: "Save expense" }).click();
+    await page.getByRole("button", { name: "Add to the tab" }).click();
 
     // BUG-004 regression: this must land back on the group screen, not throw
     // "GO_BACK was not handled".
@@ -64,7 +64,7 @@ test.describe("F01 core loop", () => {
     await page.getByRole("button", { name: /^Indiranagar Flat,/ }).click();
     await page.getByRole("button", { name: "Add expense to this group" }).click();
     await page.getByLabel("Description").fill("Nothing");
-    await page.getByRole("button", { name: "Save expense" }).click();
+    await page.getByRole("button", { name: "Add to the tab" }).click();
     await expect(page.getByText("Add a description and an amount greater than zero.")).toBeVisible();
     await expect(page).toHaveURL(/\/expense\/add/);
   });
@@ -79,7 +79,7 @@ test.describe("F01 core loop", () => {
     // so match on the prefix rather than an exact string.
     await page.getByRole("button", { name: /^Split equally/ }).click();
     await page.getByRole("tab", { name: "Exact" }).click();
-    await page.getByRole("button", { name: "Save expense" }).click();
+    await page.getByRole("button", { name: "Add to the tab" }).click();
     await expect(page.getByText(/Fix the split before saving/)).toBeVisible();
     await expect(page).toHaveURL(/\/expense\/add/);
   });

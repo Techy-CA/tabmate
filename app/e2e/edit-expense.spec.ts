@@ -30,7 +30,7 @@ test.describe("edit expense", () => {
     await page.getByLabel(/Amount for you/).fill("500");
     await page.getByLabel(/Amount for Dev/).fill("500");
     await page.getByLabel(/Amount for Ayaan/).fill("500");
-    await page.getByRole("button", { name: "Save changes" }).click();
+    await page.getByRole("button", { name: "Update the tab" }).click();
 
     await expect(page).toHaveURL(/\/expense\//);
     await expect(page.getByText("paid ₹1,500 · owes ₹500")).toBeVisible();

@@ -53,7 +53,7 @@ export default function CreateGroup() {
           <Text className="font-sans-semibold text-sm text-text">Add members</Text>
           {friends.length === 0 ? (
             <Text className="font-sans text-sm text-muted">
-              You don&apos;t have any friends on Splitsy yet — you can invite people once the group is
+              You don&apos;t have any friends on Tabmate yet — you can invite people once the group is
               created.
             </Text>
           ) : (

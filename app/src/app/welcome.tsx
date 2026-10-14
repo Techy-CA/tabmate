@@ -18,12 +18,12 @@ export default function Welcome() {
 
         <View className="gap-3">
           <View className="h-14 w-14 items-center justify-center rounded-lg bg-accent">
-            <Text className="font-display text-xl text-on-accent">S</Text>
+            <Text className="font-display text-xl text-on-accent">T</Text>
           </View>
-          <Text className="font-display text-display text-text">Split costs.{"\n"}Not friendships.</Text>
+          <Text className="font-display text-display text-text">Settle up.{"\n"}Stay mates.</Text>
           <Text className="font-sans text-base text-muted">
-            Track shared expenses with roommates, trips and friends — see who owes who, and settle
-            up in a tap. No daily limits, ever.
+            Track what everyone chips in for — trips, rent, dinners — and settle up without the
+            awkward maths. No caps on how much you can add, ever.
           </Text>
         </View>
 

@@ -1,0 +1,5 @@
+{
+  "avoid": ["Splitwise", "Splitwise Inc", "Splitsy"],
+  "domains": ["splitwise.com", "kb.splitwise.com", "dev.splitwise.com"],
+  "colors": ["#3dbe98", "#2e333d", "#f2703d", "#5bcdac"]
+}

@@ -8,13 +8,13 @@ import { login } from "./helpers";
 test("BUG-001: root route resolves to exactly one screen per auth state", async ({ page }) => {
   await page.goto("/");
   await expect(page).toHaveURL("/welcome");
-  await expect(page.getByText("Split costs.")).toBeVisible();
+  await expect(page.getByText("Settle up.")).toBeVisible();
 
   // login() itself lands on "/" and asserts the Home screen shows — a second
   // hard page.goto("/") here would do a full reload and wipe the fake,
   // in-memory auth state, which isn't what this test is checking.
   await login(page);
-  await expect(page.getByText("Hi, You")).toBeVisible();
+  await expect(page.getByText("Hey, You")).toBeVisible();
 });
 
 test("BUG-004: a direct deep link into add-expense can still navigate away without crashing", async ({ page }) => {

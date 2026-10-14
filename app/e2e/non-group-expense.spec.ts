@@ -18,7 +18,7 @@ test.describe("non-group expense", () => {
   test("F01-E4 blocks save with no friends selected", async ({ page }) => {
     await page.getByLabel("Description").fill("Solo snack");
     await page.getByLabel("Amount").fill("200");
-    await page.getByRole("button", { name: "Save expense" }).click();
+    await page.getByRole("button", { name: "Add to the tab" }).click();
     await expect(page.getByText("Add at least one other person to split with.")).toBeVisible();
     await expect(page).toHaveURL(/\/expense\/add$/);
   });
@@ -27,7 +27,7 @@ test.describe("non-group expense", () => {
     await page.getByRole("checkbox", { name: /Rhea Kapoor/ }).click();
     await page.getByLabel("Description").fill("Solo snack");
     await page.getByLabel("Amount").fill("200");
-    await page.getByRole("button", { name: "Save expense" }).click();
+    await page.getByRole("button", { name: "Add to the tab" }).click();
 
     await expect(page).toHaveURL("/");
     await expect(page.getByRole("button", { name: /^Rhea Kapoor,/ })).toContainText("₹2,100");

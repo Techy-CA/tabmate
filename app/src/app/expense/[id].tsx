@@ -33,8 +33,8 @@ export default function ExpenseDetail() {
 
   const confirmDelete = () => {
     confirmAction({
-      title: "Delete expense?",
-      message: "You can restore it later from this screen.",
+      title: "Remove this from the tab?",
+      message: "You can bring it back anytime from this screen.",
       confirmLabel: "Delete",
       destructive: true,
       onConfirm: () => softDeleteExpense(expense.id),

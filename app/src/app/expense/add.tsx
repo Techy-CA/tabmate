@@ -270,7 +270,7 @@ export default function AddExpense() {
           <SegmentedControl options={REPEAT_OPTIONS} value={repeatInterval} onChange={setRepeatInterval} />
         </View>
 
-        <Button label={editing ? "Save changes" : "Save expense"} size="lg" onPress={submit} />
+        <Button label={editing ? "Update the tab" : "Add to the tab"} size="lg" onPress={submit} />
       </ScrollView>
     </SafeAreaView>
   );

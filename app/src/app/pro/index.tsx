@@ -21,7 +21,7 @@ export default function Pro() {
         <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => goBack(router, "/")}>
           <Feather name="arrow-left" size={22} color="#1f2430" />
         </Pressable>
-        <Text className="font-display text-lg text-text">Splitsy Pro</Text>
+        <Text className="font-display text-lg text-text">Tabmate Pro</Text>
       </View>
 
       <ScrollView contentContainerClassName="gap-6 p-6">

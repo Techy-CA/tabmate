@@ -1,4 +1,4 @@
-# Test plan: Splitsy
+# Test plan: Tabmate
 
 Build: (pending commit)  Date: 2026-10-14 (two sessions)  Env: local (Expo web, `expo start --web`), fake in-memory data layer with seed data from `app/src/lib/data/seed.ts`
 

@@ -1,4 +1,4 @@
-# Architecture: Splitsy (working name) — a rebuild of Splitwise's core features
+# Architecture: Tabmate (working name) — a rebuild of Splitwise's core features
 
 Ships as an Android APK first (per the brief), backed by a managed Postgres backend that a future
 web or iOS client can reuse without changes.

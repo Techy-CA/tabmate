@@ -52,7 +52,7 @@ export default function Account() {
           <Row icon="bell" label="Notifications" />
           <Toggle label="Push notifications" value={notifications} onChange={setNotifications} />
           <Row icon="shield" label="Security" />
-          <Row icon="star" label="Splitsy Pro" onPress={() => router.push("/pro")} />
+          <Row icon="star" label="Tabmate Pro" onPress={() => router.push("/pro")} />
           <Row icon="help-circle" label="Help & support" />
         </View>
 

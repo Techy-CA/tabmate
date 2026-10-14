@@ -1,19 +1,21 @@
 {
   "expo": {
-    "name": "app",
-    "slug": "app",
-    "scheme": "splitsy",
+    "name": "Tabmate",
+    "slug": "tabmate",
+    "scheme": "tabmate",
     "version": "1.0.0",
     "orientation": "portrait",
     "newArchEnabled": true,
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
+      "bundleIdentifier": "com.tabmate.app",
       "supportsTablet": true
     },
     "android": {
+      "package": "com.tabmate.app",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#5B5FEF",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"

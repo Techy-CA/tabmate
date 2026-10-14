@@ -44,7 +44,7 @@ export default function SignUp() {
           error={error}
         />
 
-        <Button label="Sign me up" size="lg" loading={loading} onPress={submit} />
+        <Button label="Count me in" size="lg" loading={loading} onPress={submit} />
 
         <View className="flex-row items-center gap-3">
           <View className="h-px flex-1 bg-border" />
@@ -63,7 +63,7 @@ export default function SignUp() {
         />
 
         <Text className="font-sans text-xs text-muted">
-          By signing up, you accept Splitsy&apos;s Terms of Service and Privacy Policy.
+          By signing up, you accept Tabmate&apos;s Terms of Service and Privacy Policy.
         </Text>
       </View>
     </SafeAreaView>
