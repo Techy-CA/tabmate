@@ -95,7 +95,7 @@ export default function AddExpense() {
       return;
     }
     if (!remainder.balanced) {
-      setError("Fix the split before saving — " + remainder.message);
+      setError("Fix the split before saving: " + remainder.message);
       return;
     }
 

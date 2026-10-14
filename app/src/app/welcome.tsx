@@ -22,7 +22,7 @@ export default function Welcome() {
           </View>
           <Text className="font-display text-display text-text">Settle up.{"\n"}Stay mates.</Text>
           <Text className="font-sans text-base text-muted">
-            Track what everyone chips in for — trips, rent, dinners — and settle up without the
+            Track what everyone chips in for: trips, rent, dinners. Settle up without the
             awkward maths. No caps on how much you can add, ever.
           </Text>
         </View>

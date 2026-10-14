@@ -26,8 +26,8 @@ export default function Pro() {
 
       <ScrollView contentContainerClassName="gap-6 p-6">
         <Text className="font-sans text-sm text-muted">
-          Everything you need to split costs is already free — no daily limits, no ad-supported
-          free tier. Pro adds a few extras for power users.
+          Everything you need to split costs is already free, no daily limits and no ads. Pro
+          adds a few extras for power users.
         </Text>
 
         <View className="gap-4">
@@ -45,7 +45,7 @@ export default function Pro() {
         <View className="items-center gap-2 rounded-lg border border-dashed border-border p-6">
           <Text className="font-sans-medium text-sm text-muted">Coming soon</Text>
           <Text className="text-center font-sans text-xs text-muted">
-            Pro billing isn&apos;t wired up yet — this is a placeholder screen from replica-build.
+            We&apos;re still building Pro. These extras will unlock here once they&apos;re ready.
           </Text>
         </View>
       </ScrollView>

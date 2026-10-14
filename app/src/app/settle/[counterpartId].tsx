@@ -81,8 +81,8 @@ export default function SettleUp() {
 
         <Text className="font-sans text-sm text-muted">
           {iOwe
-            ? `This just logs that you paid ${counterpart.name} outside the app (cash, bank transfer, UPI) — Tabmate doesn't move any money itself.`
-            : `This just logs that ${counterpart.name} paid you outside the app — Tabmate doesn't move any money itself.`}
+            ? `This just logs that you paid ${counterpart.name} outside the app (cash, bank transfer, UPI). Tabmate doesn't move any money itself.`
+            : `This just logs that ${counterpart.name} paid you outside the app. Tabmate doesn't move any money itself.`}
         </Text>
 
         <Button label="Confirm" size="lg" disabled={amountCents <= 0} onPress={confirm} />

@@ -87,7 +87,7 @@ export default function GroupDetail() {
 
           {transfers.length > 0 ? (
             <View className="gap-1.5 border-t border-border pt-3">
-              <Text className="font-sans-medium text-xs text-muted">Simplified — fewest payments to settle up</Text>
+              <Text className="font-sans-medium text-xs text-muted">Simplified: fewest payments to settle up</Text>
               {transfers.map((t, i) => (
                 <View key={i} className="flex-row items-center gap-2">
                   <Text className="font-sans text-sm text-text">{getUser(t.from)?.name}</Text>
