@@ -59,6 +59,7 @@ export default function Account() {
             onPress={() => router.push("/account/currency")}
           />
           <Row icon="bell" label="Notifications" onPress={() => router.push("/account/notifications")} />
+          <Row icon="credit-card" label="Payment details" onPress={() => router.push("/account/payment-details")} />
           <Row icon="shield" label="Security" onPress={() => router.push("/account/security")} />
           <Row icon="star" label="Tabmate Pro" onPress={() => router.push("/pro")} />
           <Row icon="help-circle" label="Help & support" onPress={() => router.push("/account/help")} />

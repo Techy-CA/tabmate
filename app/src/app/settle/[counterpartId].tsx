@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { Animated, Pressable, Text, View } from "react-native";
+import { Animated, Linking, Pressable, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Avatar } from "@/components/Avatar";
@@ -10,6 +10,7 @@ import { Input } from "@/components/Input";
 import { formatCents } from "@/lib/data/balances";
 import { useData } from "@/lib/data/store";
 import { goBack } from "@/lib/nav";
+import { buildPaymentLinks } from "@/lib/paymentLinks";
 
 // S09 — Settle up. Tabmate only ever records a payment made outside the
 // app (cash, bank transfer, UPI the user did themselves) — it's an expense
@@ -43,6 +44,7 @@ export default function SettleUp() {
 
   if (!counterpart) return null;
   const amountCents = Math.round((parseFloat(amountText || "0") || 0) * 100);
+  const payLinks = iOwe ? buildPaymentLinks(counterpart, amountCents) : [];
 
   const fallbackHref = groupId ? (`/group/${groupId}` as const) : (`/friend/${counterpartId}` as const);
 
@@ -122,6 +124,28 @@ export default function SettleUp() {
             ? `This just logs that you paid ${counterpart.name} outside the app (cash, bank transfer, UPI). Tabmate doesn't move any money itself.`
             : `This just logs that ${counterpart.name} paid you outside the app. Tabmate doesn't move any money itself.`}
         </Text>
+
+        {payLinks.length > 0 ? (
+          <View className="gap-2">
+            <Text className="font-sans-semibold text-sm text-text">Pay directly</Text>
+            <View className="flex-row flex-wrap gap-2">
+              {payLinks.map((link) => (
+                <Pressable
+                  key={link.label}
+                  onPress={() => Linking.openURL(link.url).catch(() => {})}
+                  accessibilityRole="button"
+                  className="flex-row items-center gap-2 rounded-pill border border-border px-3 py-2"
+                >
+                  <Feather name={link.icon} size={14} color="#5b5fef" />
+                  <Text className="font-sans-medium text-sm text-text">{link.label}</Text>
+                </Pressable>
+              ))}
+            </View>
+            <Text className="font-sans text-xs text-muted">
+              Opens {counterpart.name}&apos;s payment app with the amount filled in. Still tap Confirm below once you&apos;ve actually paid.
+            </Text>
+          </View>
+        ) : null}
 
         {saveError ? <Text className="font-sans text-sm text-danger">{saveError}</Text> : null}
         <Button label="Confirm" size="lg" disabled={amountCents <= 0} loading={saving} onPress={confirm} />

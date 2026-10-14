@@ -26,6 +26,12 @@ export type User = {
   avatarUrl?: string;
   defaultCurrency: string;
   timezone: string;
+  // Payment handles the user has set on their own profile, read by Settle
+  // Up to build a one-tap pay link to THEM — never collected or stored for
+  // anyone else, and never used to move money through the app itself.
+  upiId?: string;
+  paypalMeHandle?: string;
+  venmoUsername?: string;
 };
 
 export type Group = {

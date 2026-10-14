@@ -10,6 +10,9 @@ export function mapUser(row: Record<string, unknown>): User {
     avatarUrl: (row.avatar_url as string | null) ?? undefined,
     defaultCurrency: row.default_currency as string,
     timezone: row.timezone as string,
+    upiId: (row.upi_id as string | null) ?? undefined,
+    paypalMeHandle: (row.paypal_me_handle as string | null) ?? undefined,
+    venmoUsername: (row.venmo_username as string | null) ?? undefined,
   };
 }
 

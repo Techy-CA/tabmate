@@ -16,6 +16,12 @@ create table users (
   default_currency char(3) not null default 'INR',
   timezone text not null default 'Asia/Kolkata',
   locale text not null default 'en',
+  -- Payment handles the user sets on their own profile, read by Settle Up
+  -- to build a one-tap pay link to THEM. Never used to move money through
+  -- the app itself — just a prefilled deep link to UPI/PayPal/Venmo.
+  upi_id text,
+  paypal_me_handle text,
+  venmo_username text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );

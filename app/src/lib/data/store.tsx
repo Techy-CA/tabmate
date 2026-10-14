@@ -57,7 +57,9 @@ type DataContextValue = {
   groupMembers: GroupMember[];
 
   getUser: (id: string) => User | undefined;
-  updateCurrentUser: (patch: Partial<Pick<User, "name" | "defaultCurrency">>) => Promise<void>;
+  updateCurrentUser: (
+    patch: Partial<Pick<User, "name" | "defaultCurrency" | "upiId" | "paypalMeHandle" | "venmoUsername">>
+  ) => Promise<void>;
   getGroup: (id: string) => Group | undefined;
   listMyGroups: () => Group[];
   listGroupMembers: (groupId: string) => User[];
@@ -101,7 +103,7 @@ type DataContextValue = {
 const DataContext = createContext<DataContextValue | null>(null);
 
 export function DataProvider({ children }: { children: React.ReactNode }) {
-  const { userId, isAuthenticated } = useAuth();
+  const { userId, isAuthenticated, loading: authLoading } = useAuth();
 
   const [users, setUsers] = useState<User[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
@@ -207,12 +209,15 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const getUser = useCallback((id: string) => users.find((u) => u.id === id), [users]);
 
   const updateCurrentUser = useCallback(
-    async (patch: Partial<Pick<User, "name" | "defaultCurrency">>) => {
+    async (patch: Partial<Pick<User, "name" | "defaultCurrency" | "upiId" | "paypalMeHandle" | "venmoUsername">>) => {
       if (!userId) return;
-      await supabase
-        .from("users")
-        .update({ name: patch.name, default_currency: patch.defaultCurrency })
-        .eq("id", userId);
+      const payload: Record<string, unknown> = {};
+      if (patch.name !== undefined) payload.name = patch.name;
+      if (patch.defaultCurrency !== undefined) payload.default_currency = patch.defaultCurrency;
+      if (patch.upiId !== undefined) payload.upi_id = patch.upiId || null;
+      if (patch.paypalMeHandle !== undefined) payload.paypal_me_handle = patch.paypalMeHandle || null;
+      if (patch.venmoUsername !== undefined) payload.venmo_username = patch.venmoUsername || null;
+      await supabase.from("users").update(payload).eq("id", userId);
       await fetchUsers();
     },
     [userId, fetchUsers]
@@ -626,6 +631,21 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   // throughout this app's history on the fake layer) — rather than touch
   // every call site to handle "not loaded yet", block rendering children
   // until the first real fetch resolves and the user's own row is in cache.
+  //
+  // authLoading matters here too: useAuth()'s getSession() is async, so
+  // isAuthenticated reads false for a brief window even when a session
+  // will restore successfully. Any screen outside (tabs) — the account/*
+  // sub-screens, expense detail, settle-up — has no auth guard of its own
+  // and calls useData() directly, so skipping the Provider during that
+  // window (not just "genuinely logged out") crashed them on a direct
+  // reload with "useData must be used inside DataProvider".
+  if (authLoading) {
+    return (
+      <View className="flex-1 items-center justify-center bg-bg">
+        <ActivityIndicator color="#5b5fef" />
+      </View>
+    );
+  }
   if (!isAuthenticated) return <>{children}</>;
   if (!ready || !value) {
     return (
