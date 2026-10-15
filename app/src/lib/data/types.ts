@@ -21,7 +21,13 @@ export type ActivityType =
 export type User = {
   id: string;
   name: string;
+  // null for someone invited by number only
   email: string;
+  /** Invited but hasn't signed up yet (migration 005). They can be in
+   * groups and expenses like anyone; on sign-up they take over this record. */
+  isPending: boolean;
+  /** A group's common pool (migration 008) — a member that holds money, never a person. */
+  isKitty: boolean;
   /** E.164, e.g. +919876543210 — optional, lets friends find you by number */
   phone?: string;
   avatarUrl?: string;
@@ -69,9 +75,16 @@ export type AppNotification = {
   createdAt: string;
 };
 
+export type GroupType = "trip" | "home" | "couple" | "other";
+
 export type Group = {
   id: string;
   name: string;
+  groupType: GroupType;
+  /** trip mode: yyyy-mm-dd */
+  startDate?: string;
+  endDate?: string;
+  budgetCents?: number;
   coverPhotoUrl?: string;
   defaultCurrency: string;
   simplifyDebts: boolean;
@@ -121,12 +134,33 @@ export type Expense = {
   repeatInterval: RepeatInterval;
   recurringTemplateId?: string;
   receiptUrl?: string;
+  notes?: string;
   createdBy: string;
   shares: ExpenseShare[];
   items?: ExpenseItem[];
   createdAt: string;
   updatedAt: string;
   deletedAt?: string;
+};
+
+export type ExpenseHistoryEntry = {
+  id: string;
+  expenseId: string;
+  changedBy?: string;
+  action: "created" | "edited" | "deleted" | "restored";
+  before?: ExpenseSnapshot;
+  after?: ExpenseSnapshot;
+  createdAt: string;
+};
+
+export type ExpenseSnapshot = {
+  description: string;
+  amount_cents: number;
+  category: string;
+  expense_date: string;
+  notes: string | null;
+  split_type: SplitType;
+  shares: { user_id: string; paid_cents: number; owed_cents: number }[];
 };
 
 export type ExpenseComment = {

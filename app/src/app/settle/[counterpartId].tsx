@@ -17,7 +17,12 @@ import { buildPaymentLinks } from "@/lib/paymentLinks";
 // tracker between friends, not a payment processor, so there's no
 // in-app money movement to pick a method for.
 export default function SettleUp() {
-  const { counterpartId, groupId } = useLocalSearchParams<{ counterpartId: string; groupId?: string }>();
+  const { counterpartId, groupId, kitty: kittyMode } = useLocalSearchParams<{
+    counterpartId: string;
+    groupId?: string;
+    /** "in" = putting money into the group's kitty */
+    kitty?: string;
+  }>();
   const router = useRouter();
   const { getUser, getGroup, getFriendBalance, getFriendBalanceByContext, getGroupTransfers, currentUser, createPayment } =
     useData();
@@ -43,8 +48,10 @@ export default function SettleUp() {
         : groupTransfer.amountCents
       : 0
     : getFriendBalance(counterpartId);
-  const iOwe = relevantBalanceCents < 0;
-  const suggestedCents = Math.abs(relevantBalanceCents);
+  const addingToKitty = kittyMode === "in";
+  // putting money into the kitty is always "you → kitty", any amount
+  const iOwe = addingToKitty || relevantBalanceCents < 0;
+  const suggestedCents = addingToKitty ? 0 : Math.abs(relevantBalanceCents);
 
   // Outside a group, the server applies the payment to the contexts where
   // you owe each other — non-group expenses first, then each group — so
@@ -57,7 +64,7 @@ export default function SettleUp() {
         // same order the server applies it in: non-group first, then the largest group debt
         .sort((a, b) => (a.ctx === "" ? -1 : b.ctx === "" ? 1 : b.cents - a.cents));
 
-  const [amountText, setAmountText] = useState((suggestedCents / 100).toFixed(2));
+  const [amountText, setAmountText] = useState(suggestedCents ? (suggestedCents / 100).toFixed(2) : "");
   const [done, setDone] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | undefined>();
@@ -71,7 +78,9 @@ export default function SettleUp() {
 
   if (!counterpart) return null;
   const amountCents = Math.round((parseFloat(amountText || "0") || 0) * 100);
-  const payLinks = iOwe ? buildPaymentLinks(counterpart, amountCents) : [];
+  const isKitty = counterpart.isKitty;
+  const theirName = isKitty ? "the kitty" : counterpart.name;
+  const payLinks = iOwe && !isKitty ? buildPaymentLinks(counterpart, amountCents) : [];
 
   const fallbackHref = groupId ? (`/group/${groupId}` as const) : (`/friend/${counterpartId}` as const);
 
@@ -111,12 +120,12 @@ export default function SettleUp() {
         <Animated.View style={{ opacity: doneProgress, transform: [{ scale }] }}>
           <View className="items-center gap-6">
             <View className="h-20 w-20 items-center justify-center rounded-pill bg-success/10">
-              <Feather name="check" size={36} color="#15803d" />
+              <Feather name="check" size={36} className="text-success" />
             </View>
 
             <View className="items-center gap-1">
-              <Text className="font-display text-xl text-text">All squared away</Text>
-              <Text className="font-sans text-sm text-muted">with {counterpart.name}</Text>
+              <Text className="font-display text-xl text-text">{addingToKitty ? "Added to the kitty" : "All squared away"}</Text>
+              <Text className="font-sans text-sm text-muted">{addingToKitty ? group?.name : `with ${theirName}`}</Text>
             </View>
 
             <Text className="font-display text-display text-success">{formatCents(amountCents, currencyCode)}</Text>
@@ -132,7 +141,7 @@ export default function SettleUp() {
     <SafeAreaView className="flex-1 bg-bg">
       <View className="flex-row items-center gap-3 border-b border-border p-4">
         <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={() => goBack(router, fallbackHref)}>
-          <Feather name="x" size={22} color="#1f2430" />
+          <Feather name="x" size={22} className="text-text" />
         </Pressable>
         <Text className="font-display text-lg text-text">Settle up</Text>
       </View>
@@ -140,16 +149,22 @@ export default function SettleUp() {
       <View className="gap-6 p-6">
         <View className="items-center gap-2">
           <Avatar id={counterpart.id} name={counterpart.name} size="lg" />
-          <Text className="font-sans text-sm text-muted">{iOwe ? "You paid" : "Record that you were paid by"}</Text>
-          <Text className="font-sans-semibold text-base text-text">{counterpart.name}</Text>
+          <Text className="font-sans text-sm text-muted">
+            {addingToKitty ? "You put money into" : iOwe ? "You paid" : "Record that you were paid by"}
+          </Text>
+          <Text className="font-sans-semibold text-base text-text">{isKitty ? `${group?.name ?? "the group"}'s kitty` : counterpart.name}</Text>
         </View>
 
         <Input label="Amount" prefix={currencySymbol(currencyCode)} keyboardType="decimal-pad" value={amountText} onChangeText={setAmountText} />
 
         <Text className="font-sans text-sm text-muted">
           {iOwe
-            ? `This just logs that you paid ${counterpart.name} outside the app (cash, bank transfer, UPI). Tabmate doesn't move any money itself.`
-            : `This just logs that ${counterpart.name} paid you outside the app. Tabmate doesn't move any money itself.`}
+            ? isKitty
+              ? "Log money you put into the common pool (cash or UPI to whoever holds it). Expenses paid from the kitty come out of it."
+              : `This just logs that you paid ${counterpart.name} outside the app (cash, bank transfer, UPI). Tabmate doesn't move any money itself.`
+            : isKitty
+              ? "Log leftover kitty money you got back."
+              : `This just logs that ${counterpart.name} paid you outside the app. Tabmate doesn't move any money itself.`}
         </Text>
 
         {breakdown.length > 1 || (breakdown.length === 1 && breakdown[0].label !== "Non-group expenses") ? (
@@ -178,7 +193,7 @@ export default function SettleUp() {
                   accessibilityRole="button"
                   className="flex-row items-center gap-2 rounded-pill border border-border px-3 py-2"
                 >
-                  <Feather name={link.icon} size={14} color="#5b5fef" />
+                  <Feather name={link.icon} size={14} className="text-accent" />
                   <Text className="font-sans-medium text-sm text-text">{link.label}</Text>
                 </Pressable>
               ))}

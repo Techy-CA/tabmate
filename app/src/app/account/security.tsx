@@ -14,7 +14,7 @@ export default function SecuritySettings() {
     <SafeAreaView className="flex-1 bg-bg">
       <View className="flex-row items-center gap-3 border-b border-border p-4">
         <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => goBack(router, "/account")}>
-          <Feather name="arrow-left" size={22} color="#1f2430" />
+          <Feather name="arrow-left" size={22} className="text-text" />
         </Pressable>
         <Text className="font-display text-lg text-text">Security</Text>
       </View>

@@ -37,7 +37,7 @@ export default function Notifications() {
       <View className="flex-row items-center justify-between border-b border-border p-4">
         <View className="flex-row items-center gap-3">
           <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => goBack(router, "/")}>
-            <Feather name="arrow-left" size={22} color="#1f2430" />
+            <Feather name="arrow-left" size={22} className="text-text" />
           </Pressable>
           <Text className="font-display text-lg text-text">Notifications</Text>
         </View>
@@ -77,7 +77,7 @@ export default function Notifications() {
                   <Avatar id={actor.id} name={actor.name} size="sm" />
                 ) : (
                   <View className="h-8 w-8 items-center justify-center rounded-pill bg-surface">
-                    <Feather name="bell" size={14} color="#6b7280" />
+                    <Feather name="bell" size={14} className="text-muted" />
                   </View>
                 )}
                 <View className="flex-1 gap-0.5">

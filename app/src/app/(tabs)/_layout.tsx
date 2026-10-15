@@ -2,9 +2,11 @@ import { Feather } from "@expo/vector-icons";
 import { Redirect, Tabs } from "expo-router";
 
 import { useAuth } from "@/lib/auth";
+import { useTheme } from "@/lib/theme";
 
 export default function TabsLayout() {
   const { isAuthenticated, loading } = useAuth();
+  const { colors } = useTheme();
   // Supabase's getSession() is async — isAuthenticated starts false until it
   // resolves, so redirecting on that alone would bounce an actually-logged-in
   // user back to /welcome on every refresh during that brief window.
@@ -15,9 +17,9 @@ export default function TabsLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: "#5b5fef",
-        tabBarInactiveTintColor: "#6b7280",
-        tabBarStyle: { borderTopColor: "#e3e6ea" },
+        tabBarActiveTintColor: colors.accent,
+        tabBarInactiveTintColor: colors.muted,
+        tabBarStyle: { borderTopColor: colors.border, backgroundColor: colors.bg },
         tabBarLabelStyle: { fontFamily: "Inter_500Medium", fontSize: 11 },
       }}
     >

@@ -70,6 +70,48 @@ export function computeShares(
   return participantIds.map((userId) => ({ userId, owedCents: 0 }));
 }
 
+export type BillItem = { name: string; amountCents: number; userIds: string[] };
+
+/**
+ * Itemized ("who had what") split. Each item is shared equally by the people
+ * who had it; tax/tip/service charge and discount are spread in proportion
+ * to each person's item subtotal (how restaurants and delivery apps work).
+ * Always sums to exactly the bill total; returns that total too.
+ */
+export function computeItemizedShares(
+  items: BillItem[],
+  extraCents: number,
+  discountCents: number,
+  participantIds: string[]
+): { shares: ComputedShare[]; totalCents: number } {
+  const subtotal = new Map<string, number>(participantIds.map((id) => [id, 0]));
+  for (const it of items) {
+    const people = it.userIds.filter((id) => subtotal.has(id));
+    if (it.amountCents <= 0 || people.length === 0) continue;
+    const base = Math.floor(it.amountCents / people.length);
+    let rest = it.amountCents - base * people.length;
+    for (const id of people) {
+      subtotal.set(id, (subtotal.get(id) ?? 0) + base + (rest > 0 ? 1 : 0));
+      if (rest > 0) rest--;
+    }
+  }
+  const itemsTotal = [...subtotal.values()].reduce((a, b) => a + b, 0);
+  const totalCents = Math.max(itemsTotal + extraCents - discountCents, 0);
+  if (itemsTotal === 0) return { shares: participantIds.map((userId) => ({ userId, owedCents: 0 })), totalCents };
+
+  const shares = participantIds.map((userId) => ({
+    userId,
+    owedCents: Math.round(((subtotal.get(userId) ?? 0) * totalCents) / itemsTotal),
+  }));
+  // rounding leftovers go to whoever had the most, not just the first person
+  const sum = shares.reduce((s, x) => s + x.owedCents, 0);
+  if (sum !== totalCents) {
+    const biggest = shares.reduce((a, b) => (b.owedCents > a.owedCents ? b : a));
+    biggest.owedCents += totalCents - sum;
+  }
+  return { shares, totalCents };
+}
+
 function fixRemainder(shares: ComputedShare[], amountCents: number) {
   const sum = shares.reduce((s, x) => s + x.owedCents, 0);
   const diff = amountCents - sum;

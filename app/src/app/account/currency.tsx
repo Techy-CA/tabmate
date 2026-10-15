@@ -24,7 +24,7 @@ export default function CurrencySettings() {
     <SafeAreaView className="flex-1 bg-bg">
       <View className="flex-row items-center gap-3 border-b border-border p-4">
         <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => goBack(router, "/account")}>
-          <Feather name="arrow-left" size={22} color="#1f2430" />
+          <Feather name="arrow-left" size={22} className="text-text" />
         </Pressable>
         <Text className="font-display text-lg text-text">Default currency</Text>
       </View>
@@ -46,7 +46,7 @@ export default function CurrencySettings() {
                 </Text>
                 <Text className="font-sans text-xs text-muted">{c.label}</Text>
               </View>
-              {selected ? <Feather name="check" size={20} color="#5b5fef" /> : null}
+              {selected ? <Feather name="check" size={20} className="text-accent" /> : null}
             </Pressable>
           );
         })}

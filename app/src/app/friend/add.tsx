@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
-import { ActivityIndicator, Linking, Platform, Pressable, ScrollView, Share, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Avatar } from "@/components/Avatar";
@@ -9,41 +9,13 @@ import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
 import { loadDeviceContacts, type DeviceContact } from "@/lib/contacts";
 import { useData, type AddFriendResult, type ContactMatch } from "@/lib/data/store";
+import { inviteMessage, sendInvite } from "@/lib/invite";
 import { goBack } from "@/lib/nav";
 
 type EntryResult = AddFriendResult | { status: "error"; message: string };
 
-const DOWNLOAD_URL = process.env.EXPO_PUBLIC_APP_DOWNLOAD_URL;
 // Rendering thousands of rows at once is slow; search narrows the rest.
 const INVITE_LIST_LIMIT = 60;
-
-function inviteMessage(inviterName: string, target: string) {
-  return [
-    `${inviterName} invited you to Tabmate — the easy way to split bills with friends.`,
-    DOWNLOAD_URL ? `Get the app: ${DOWNLOAD_URL}` : null,
-    `Sign up with ${target} and you'll be connected automatically.`,
-  ]
-    .filter(Boolean)
-    .join("\n\n");
-}
-
-/** SMS when there's a number (Android opens the messages app prefilled), share sheet otherwise. */
-async function sendInvite(message: string, phone?: string | null) {
-  if (phone && Platform.OS !== "web") {
-    const url = `sms:${phone}?body=${encodeURIComponent(message)}`;
-    try {
-      await Linking.openURL(url);
-      return;
-    } catch {
-      // no SMS app — fall back to the share sheet
-    }
-  }
-  try {
-    await Share.share({ message });
-  } catch {
-    // no share sheet (web preview) — the invite is still saved server-side
-  }
-}
 
 type ContactState = "busy" | "added" | "invited";
 
@@ -61,13 +33,13 @@ function OptionRow({
   return (
     <Pressable onPress={onPress} accessibilityRole="button" className="flex-row items-center gap-3 py-3">
       <View className="h-9 w-9 items-center justify-center rounded-pill bg-surface">
-        <Feather name={icon} size={16} color="#1f2430" />
+        <Feather name={icon} size={16} className="text-text" />
       </View>
       <View className="flex-1">
         <Text className="font-sans-medium text-sm text-text">{title}</Text>
         <Text className="font-sans text-xs text-muted">{subtitle}</Text>
       </View>
-      <Feather name="chevron-right" size={18} color="#6b7280" />
+      <Feather name="chevron-right" size={18} className="text-muted" />
     </Pressable>
   );
 }
@@ -79,6 +51,8 @@ export default function AddFriend() {
   const [entry, setEntry] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<EntryResult | null>(null);
+  // asked for when the email/number isn't on Tabmate yet
+  const [newName, setNewName] = useState("");
 
   const [contactsState, setContactsState] = useState<"idle" | "loading" | "loaded" | "unavailable" | "error">("idle");
   const [contacts, setContacts] = useState<DeviceContact[]>([]);
@@ -86,14 +60,17 @@ export default function AddFriend() {
   const [contactStatus, setContactStatus] = useState<Record<string, ContactState>>({});
   const [filter, setFilter] = useState("");
 
-  const submit = async () => {
+  const submit = async (name?: string) => {
     const value = entry.trim();
     if (!value || submitting) return;
     setSubmitting(true);
     try {
-      const r = await addFriend(value);
+      const r = await addFriend(value, name);
       setResult(r);
-      if (r.status === "added" || r.status === "already" || r.status === "invited") setEntry("");
+      if (r.status === "added" || r.status === "already" || r.status === "invited") {
+        setEntry("");
+        setNewName("");
+      }
       if (r.status === "invited") sendInvite(inviteMessage(currentUser.name, r.email ?? r.phone ?? value), r.phone);
     } catch (e) {
       setResult({ status: "error", message: e instanceof Error ? e.message : "Something went wrong." });
@@ -158,8 +135,9 @@ export default function AddFriend() {
     const target = c.phones[0] ?? c.emails[0];
     setContactStatus((s) => ({ ...s, [c.id]: "busy" }));
     try {
-      // Saves the pending invite, so they're connected the moment they sign up.
-      const r = await addFriend(target);
+      // Creates them as a pending friend (named as in your contacts) — you can
+      // add them to groups and expenses now; they take it over on sign-up.
+      const r = await addFriend(target, c.name);
       setContactStatus((s) => ({ ...s, [c.id]: "invited" }));
       await sendInvite(inviteMessage(currentUser.name, c.phones[0] ?? c.emails[0]), r.status === "invited" ? r.phone : null);
     } catch {
@@ -171,7 +149,7 @@ export default function AddFriend() {
     <SafeAreaView className="flex-1 bg-bg">
       <View className="flex-row items-center gap-3 border-b border-border p-4">
         <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={() => goBack(router, "/")}>
-          <Feather name="x" size={22} color="#1f2430" />
+          <Feather name="x" size={22} className="text-text" />
         </Pressable>
         <Text className="font-display text-lg text-text">Add a friend</Text>
       </View>
@@ -189,11 +167,38 @@ export default function AddFriend() {
               setEntry(t);
               setResult(null);
             }}
-            onSubmitEditing={submit}
+            onSubmitEditing={() => submit()}
             returnKeyType="send"
             autoFocus
           />
-          <Button label="Add friend" size="lg" loading={submitting} disabled={!entry.trim()} onPress={submit} />
+          {result?.status !== "needs_name" ? (
+            <Button label="Add friend" size="lg" loading={submitting} disabled={!entry.trim()} onPress={() => submit()} />
+          ) : null}
+
+          {result?.status === "needs_name" ? (
+            <View className="gap-3 rounded-lg border border-border bg-surface p-4">
+              <Text className="font-sans text-sm text-text">
+                {result.email ?? result.phone} isn&apos;t on Tabmate yet. Add them anyway — you can put them in groups and
+                expenses right away, and it&apos;s all waiting for them when they join.
+              </Text>
+              <Input
+                label="Their name"
+                placeholder="e.g. Chinmay"
+                value={newName}
+                onChangeText={setNewName}
+                autoFocus
+                onSubmitEditing={() => newName.trim() && submit(newName)}
+                returnKeyType="done"
+              />
+              <Button
+                label="Add & send invite"
+                size="lg"
+                loading={submitting}
+                disabled={!newName.trim()}
+                onPress={() => submit(newName)}
+              />
+            </View>
+          ) : null}
 
           {result?.status === "added" ? (
             <Text className="font-sans text-sm text-success">{result.user.name} is now your friend — we&apos;ve let them know.</Text>
@@ -211,8 +216,8 @@ export default function AddFriend() {
           {result?.status === "invited" ? (
             <View className="gap-2 rounded-lg border border-border bg-surface p-3">
               <Text className="font-sans text-sm text-text">
-                {result.email ?? result.phone} isn&apos;t on Tabmate yet. Invite saved — when they sign up you&apos;ll be
-                connected automatically.
+                {result.user.name} is added as a friend (invited). Add them to groups or split expenses with them now —
+                when they sign up with {result.email ?? result.phone}, everything&apos;s already there.
               </Text>
               <Button
                 label={result.phone ? "Send invite SMS" : "Send invite"}
@@ -254,7 +259,7 @@ export default function AddFriend() {
           )}
           {contactsState === "loading" ? (
             <View className="items-center py-4">
-              <ActivityIndicator color="#5b5fef" />
+              <ActivityIndicator className="text-accent" />
             </View>
           ) : null}
           {contactsState === "unavailable" ? (
@@ -290,7 +295,7 @@ export default function AddFriend() {
                         {m.isFriend || state === "added" ? (
                           <Text className="font-sans text-xs text-success">Friends</Text>
                         ) : state === "busy" ? (
-                          <ActivityIndicator color="#5b5fef" />
+                          <ActivityIndicator className="text-accent" />
                         ) : (
                           <Pressable
                             onPress={() => addContact(c)}
@@ -322,7 +327,7 @@ export default function AddFriend() {
                         {state === "invited" ? (
                           <Text className="font-sans text-xs text-muted">Invited</Text>
                         ) : state === "busy" ? (
-                          <ActivityIndicator color="#5b5fef" />
+                          <ActivityIndicator className="text-accent" />
                         ) : (
                           <Pressable
                             onPress={() => inviteContact(c)}

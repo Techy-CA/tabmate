@@ -13,10 +13,10 @@ function Row({ icon, label, onPress }: { icon: React.ComponentProps<typeof Feath
   return (
     <Pressable onPress={onPress} accessibilityRole="button" className="flex-row items-center justify-between py-3">
       <View className="flex-row items-center gap-3">
-        <Feather name={icon} size={18} color="#1f2430" />
+        <Feather name={icon} size={18} className="text-text" />
         <Text className="font-sans text-sm text-text">{label}</Text>
       </View>
-      <Feather name="chevron-right" size={18} color="#6b7280" />
+      <Feather name="chevron-right" size={18} className="text-muted" />
     </Pressable>
   );
 }
@@ -40,8 +40,10 @@ export default function Account() {
         >
           <Avatar id={currentUser.id} name={currentUser.name} size="lg" />
           <View className="flex-row items-center gap-1.5">
-            <Text className="font-display text-lg text-text">{currentUser.name}</Text>
-            <Feather name="edit-2" size={14} color="#6b7280" />
+            <Text numberOfLines={1} className="shrink font-display text-lg text-text">
+              {currentUser.name}
+            </Text>
+            <Feather name="edit-2" size={14} className="text-muted" />
           </View>
           <Text className="font-sans text-sm text-muted">{currentUser.email}</Text>
         </Pressable>

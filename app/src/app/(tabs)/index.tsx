@@ -63,9 +63,12 @@ export default function Home() {
 
   return (
     <SafeAreaView className="flex-1 bg-bg" edges={["top"]}>
-      <View className="flex-row items-center justify-between px-6 pb-2 pt-4">
-        <Text className="font-display text-xl text-text">Hey, {currentUser.name}</Text>
-        <View className="flex-row gap-3">
+      <View className="flex-row items-center gap-3 px-6 pb-2 pt-4">
+        {/* first name only, and it gives way (…) before the buttons do */}
+        <Text numberOfLines={1} className="flex-1 font-display text-xl text-text">
+          Hey, {currentUser.name.trim().split(/\s+/)[0]}
+        </Text>
+        <View className="shrink-0 flex-row gap-2">
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={
@@ -74,7 +77,7 @@ export default function Home() {
             onPress={() => router.push("/notifications")}
             className="h-9 w-9 items-center justify-center rounded-pill bg-surface"
           >
-            <Feather name="bell" size={18} color="#1f2430" />
+            <Feather name="bell" size={18} className="text-text" />
             {unreadNotificationCount > 0 ? (
               <View className="absolute -right-1 -top-1 h-5 min-w-5 items-center justify-center rounded-pill bg-danger px-1">
                 <Text className="font-sans-semibold text-[10px] text-on-accent">
@@ -89,7 +92,7 @@ export default function Home() {
             onPress={() => router.push("/search")}
             className="h-9 w-9 items-center justify-center rounded-pill bg-surface"
           >
-            <Feather name="search" size={18} color="#1f2430" />
+            <Feather name="search" size={18} className="text-text" />
           </Pressable>
           <Pressable
             accessibilityRole="button"
@@ -97,7 +100,7 @@ export default function Home() {
             onPress={() => router.push("/friend/add")}
             className="h-9 w-9 items-center justify-center rounded-pill bg-surface"
           >
-            <Feather name="user-plus" size={18} color="#1f2430" />
+            <Feather name="user-plus" size={18} className="text-text" />
           </Pressable>
           <Pressable
             accessibilityRole="button"
@@ -105,7 +108,7 @@ export default function Home() {
             onPress={() => router.push("/group/create")}
             className="h-9 w-9 items-center justify-center rounded-pill bg-surface"
           >
-            <Feather name="plus" size={18} color="#1f2430" />
+            <Feather name="plus" size={18} className="text-text" />
           </Pressable>
         </View>
       </View>
@@ -133,7 +136,7 @@ export default function Home() {
                   className="flex-row items-center justify-between py-2"
                 >
                   <Text className="font-sans-medium text-sm text-muted">Settled up groups ({settledGroups.length})</Text>
-                  <Feather name={showSettled ? "chevron-up" : "chevron-down"} size={18} color="#6b7280" />
+                  <Feather name={showSettled ? "chevron-up" : "chevron-down"} size={18} className="text-muted" />
                 </Pressable>
               ) : null}
               {showSettled ? settledGroups.map((g) => renderGroup(g, true)) : null}
@@ -164,7 +167,10 @@ export default function Home() {
                 >
                   <View className="flex-row items-center gap-3">
                     <Avatar id={f.id} name={f.name} />
-                    <Text className="font-sans-semibold text-base text-text">{f.name}</Text>
+                    <View>
+                      <Text className="font-sans-semibold text-base text-text">{f.name}</Text>
+                      {f.isPending ? <Text className="font-sans text-xs text-muted">Invited</Text> : null}
+                    </View>
                   </View>
                   {balance !== 0 ? (
                     <BalanceStack
@@ -188,7 +194,7 @@ export default function Home() {
         onPress={() => router.push("/expense/add")}
         className="absolute bottom-6 right-6 h-14 w-14 items-center justify-center rounded-pill bg-accent shadow-pop"
       >
-        <Feather name="plus" size={26} color="#ffffff" />
+        <Feather name="plus" size={26} className="text-on-accent" />
       </Pressable>
     </SafeAreaView>
   );

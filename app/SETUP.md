@@ -9,6 +9,11 @@ Run these files in order. Each one is safe to re-run.
 3. `replica/migration_002_realtime_notifications.sql`. This one enables realtime, adds notifications and friend invites, and fixes RLS and security bugs.
 4. `replica/migration_003_payment_allocation.sql`. A settle-up recorded outside a group now settles the matching groups too, so friend and group balances always agree. It also fixes payments recorded before this change.
 5. `replica/migration_004_phone_friends.sql`. Adds friends by mobile number, lets you invite numbers that aren't on Tabmate yet, and matches your phone contacts.
+6. `replica/migration_005_pending_members.sql`. People not on Tabmate yet can be added as *pending* friends or group members and split with immediately. When they sign up with that email or number, everything moves into their account.
+
+7. `replica/migration_007_phone_without_otp.sql`. Mobile numbers are saved without OTP, so there's no SMS cost. Whoever invited a pending person is notified when someone takes them over.
+
+**Keep "Confirm email" ON** (Authentication → Providers → Email). A pending person's data is handed over at sign-up, so the email has to be proven first.
 
 Then:
 

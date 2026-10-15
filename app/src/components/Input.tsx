@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { Text, TextInput, View, type TextInputProps } from "react-native";
 
+import { useTheme } from "@/lib/theme";
+
 export type InputProps = TextInputProps & {
   label: string;
   error?: string;
@@ -19,6 +21,7 @@ export type InputProps = TextInputProps & {
  */
 export function Input({ label, error, prefix, hideLabel, ...rest }: InputProps) {
   const [focused, setFocused] = useState(false);
+  const { colors } = useTheme();
 
   const borderClass = error ? "border-danger" : focused ? "border-accent" : "border-border-input";
 
@@ -49,7 +52,7 @@ export function Input({ label, error, prefix, hideLabel, ...rest }: InputProps) 
             setFocused(false);
             rest.onBlur?.(e);
           }}
-          placeholderTextColor="#6b7280"
+          placeholderTextColor={colors.muted}
           className="flex-1 font-sans text-base text-text outline-none"
         />
       </View>

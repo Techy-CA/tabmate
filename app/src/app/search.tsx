@@ -58,7 +58,7 @@ export default function Search() {
     <SafeAreaView className="flex-1 bg-bg">
       <View className="flex-row items-center gap-3 border-b border-border p-4">
         <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={() => goBack(router, "/")}>
-          <Feather name="x" size={22} color="#1f2430" />
+          <Feather name="x" size={22} className="text-text" />
         </Pressable>
         <View className="flex-1">
           <Input
@@ -89,7 +89,7 @@ export default function Search() {
                     active ? "border-accent bg-accent" : "border-border bg-bg"
                   }`}
                 >
-                  <Feather name={CATEGORY_ICON[c] ?? "file-text"} size={13} color={active ? "#ffffff" : "#6b7280"} />
+                  <Feather name={CATEGORY_ICON[c] ?? "file-text"} size={13} className={active ? "text-on-accent" : "text-muted"} />
                   <Text className={`font-sans-medium text-xs ${active ? "text-on-accent" : "text-text"}`}>{label(c)}</Text>
                 </Pressable>
               );
@@ -137,7 +137,7 @@ export default function Search() {
                   className="flex-row items-center gap-3 border-b border-border py-3"
                 >
                   <View className="h-8 w-8 items-center justify-center rounded-sm bg-surface">
-                    <Feather name="users" size={15} color="#6b7280" />
+                    <Feather name="users" size={15} className="text-muted" />
                   </View>
                   <Text className="flex-1 font-sans-medium text-sm text-text">{g.name}</Text>
                   <Text className={`font-sans text-xs ${mine > 0 ? "text-success" : mine < 0 ? "text-danger" : "text-muted"}`}>

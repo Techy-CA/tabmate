@@ -1,5 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -11,7 +12,9 @@ import { LedgerRow } from "@/components/LedgerRow";
 import { formatCents } from "@/lib/data/balances";
 import { useData } from "@/lib/data/store";
 import { friendExpenseRow, newestFirst, paymentRow } from "@/lib/ledger";
+import { inviteMessage, sendInvite } from "@/lib/invite";
 import { goBack } from "@/lib/nav";
+import { reminderMessage, sendViaWhatsApp } from "@/lib/reminders";
 
 // S10 — Friend detail. The whole page is about this one friend, so nothing
 // below the header repeats their name: "owes you" / "you owe" is enough.
@@ -20,9 +23,10 @@ import { goBack } from "@/lib/nav";
 export default function FriendDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { getUser, getFriendExpenses, getFriendPayments, getFriendBalance, getFriendBalanceByContext, currentUser, getGroup } =
+  const { getUser, getFriendExpenses, getFriendPayments, getFriendBalance, getFriendBalanceByContext, currentUser, getGroup, sendReminder } =
     useData();
 
+  const [notice, setNotice] = useState<string | undefined>();
   const friend = getUser(id);
   if (!friend) return null;
 
@@ -51,16 +55,23 @@ export default function FriendDetail() {
     <SafeAreaView className="flex-1 bg-bg">
       <View className="flex-row items-center gap-3 border-b border-border p-4">
         <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => goBack(router, "/")}>
-          <Feather name="arrow-left" size={22} color="#1f2430" />
+          <Feather name="arrow-left" size={22} className="text-text" />
         </Pressable>
-        <Text className="font-display text-lg text-text">{friend.name}</Text>
+        <Text numberOfLines={1} className="flex-1 font-display text-lg text-text">
+          {friend.name}
+        </Text>
       </View>
 
       <ScrollView contentContainerClassName="gap-6 p-6 pb-10">
         <View className="items-center gap-4 pt-2">
           <Avatar id={friend.id} name={friend.name} size="xl" />
           <View className="items-center gap-1">
-            <Text className="font-display text-lg text-text">{friend.name}</Text>
+            <Text numberOfLines={2} className="text-center font-display text-lg text-text">
+              {friend.name}
+            </Text>
+            {friend.isPending ? (
+              <Text className="font-sans text-xs text-muted">Invited · not on Tabmate yet</Text>
+            ) : null}
             {balance !== 0 ? (
               <BalanceHero
                 state={balance > 0 ? "owed-to-you" : "you-owe"}
@@ -71,7 +82,38 @@ export default function FriendDetail() {
               <BalanceHero state="settled" />
             )}
           </View>
-          {balance !== 0 ? <Button label="Settle up" size="lg" onPress={() => router.push(`/settle/${friend.id}`)} /> : null}
+          {balance !== 0 ? (
+            <View className="flex-row gap-3">
+              <Button label="Settle up" size="lg" onPress={() => router.push(`/settle/${friend.id}`)} />
+              {balance > 0 ? (
+                <Button
+                  label="Remind"
+                  variant="secondary"
+                  size="lg"
+                  onPress={async () => {
+                    setNotice(undefined);
+                    if (!friend.isPending) {
+                      try {
+                        const res = await sendReminder(friend.id, balance, currency);
+                        setNotice(res === "too_soon" ? "Already reminded today — sent on WhatsApp too." : "Reminder sent in Tabmate.");
+                      } catch {
+                        // WhatsApp below still goes out
+                      }
+                    }
+                    sendViaWhatsApp(reminderMessage(currentUser, friend, balance, currency), friend.phone);
+                  }}
+                />
+              ) : null}
+            </View>
+          ) : null}
+          {notice ? <Text className="font-sans text-xs text-success">{notice}</Text> : null}
+          {friend.isPending && (friend.phone || friend.email) ? (
+            <Button
+              label="Send invite again"
+              variant="secondary"
+              onPress={() => sendInvite(inviteMessage(currentUser.name, friend.email || friend.phone || ""), friend.phone)}
+            />
+          ) : null}
         </View>
 
         {/* Where the total comes from — only when there's more than one

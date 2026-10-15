@@ -6,7 +6,7 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "ios": {
       "bundleIdentifier": "com.tabmate.app",
       "supportsTablet": true
@@ -48,6 +48,12 @@
           "icon": "./assets/android-icon-monochrome.png",
           "color": "#5B5FEF",
           "defaultChannel": "default"
+        }
+      ],
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Allow Tabmate to use Face ID to unlock the app."
         }
       ]
     ],

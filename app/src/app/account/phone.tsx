@@ -10,8 +10,8 @@ import { useData } from "@/lib/data/store";
 import { goBack } from "@/lib/nav";
 
 // Your own mobile number — lets friends add you by number and find you in
-// their contacts. Saving it also connects you with anyone who already
-// invited this number (handled server-side).
+// their contacts. Saving it also brings over anything people already added
+// under this number before you joined. (Not OTP-verified, by choice.)
 export default function EditPhone() {
   const router = useRouter();
   const { currentUser, updateCurrentUser } = useData();
@@ -35,7 +35,7 @@ export default function EditPhone() {
     <SafeAreaView className="flex-1 bg-bg">
       <View className="flex-row items-center gap-3 border-b border-border p-4">
         <Pressable accessibilityRole="button" accessibilityLabel="Cancel" onPress={() => goBack(router, "/account")}>
-          <Feather name="x" size={22} color="#1f2430" />
+          <Feather name="x" size={22} className="text-text" />
         </Pressable>
         <Text className="font-display text-lg text-text">Mobile number</Text>
       </View>
@@ -59,9 +59,7 @@ export default function EditPhone() {
           don&apos;t need +91; for other countries start with the country code.
         </Text>
         <Button label="Save" size="lg" loading={saving} disabled={!phone.trim()} onPress={() => save(phone)} />
-        {currentUser.phone ? (
-          <Button label="Remove number" variant="ghost" onPress={() => save("")} />
-        ) : null}
+        {currentUser.phone ? <Button label="Remove number" variant="ghost" onPress={() => save("")} /> : null}
       </View>
     </SafeAreaView>
   );

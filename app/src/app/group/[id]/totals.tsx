@@ -59,7 +59,7 @@ export default function Totals() {
     <SafeAreaView className="flex-1 bg-bg">
       <View className="flex-row items-center gap-3 border-b border-border p-4">
         <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => goBack(router, `/group/${id}`)}>
-          <Feather name="arrow-left" size={22} color="#1f2430" />
+          <Feather name="arrow-left" size={22} className="text-text" />
         </Pressable>
         <Text className="font-display text-lg text-text">Totals</Text>
       </View>

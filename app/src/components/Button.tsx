@@ -58,7 +58,7 @@ export function Button({
         isDisabled ? "opacity-40" : ""
       } focus-visible:ring-2 focus-visible:ring-accent`}
     >
-      {loading ? <ActivityIndicator size="small" color={variant === "secondary" || variant === "ghost" ? "#5b5fef" : "#fff"} /> : null}
+      {loading ? <ActivityIndicator size="small" className={variant === "secondary" || variant === "ghost" ? "text-accent" : "text-on-accent"} /> : null}
       <Text className={`font-sans-semibold ${textSizeClasses[size]} ${v.text}`}>{label}</Text>
     </Pressable>
   );

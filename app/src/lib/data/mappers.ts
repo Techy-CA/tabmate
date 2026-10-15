@@ -6,6 +6,8 @@ import {
   type AppNotification,
   type Expense,
   type ExpenseComment,
+  type ExpenseHistoryEntry,
+  type ExpenseItem,
   type Group,
   type GroupMember,
   type NotificationPrefs,
@@ -17,7 +19,9 @@ export function mapUser(row: Record<string, unknown>): User {
   return {
     id: row.id as string,
     name: row.name as string,
-    email: row.email as string,
+    email: (row.email as string | null) ?? "",
+    isPending: !!row.is_placeholder && !row.is_kitty,
+    isKitty: !!row.is_kitty,
     phone: (row.phone as string | null) ?? undefined,
     avatarUrl: (row.avatar_url as string | null) ?? undefined,
     defaultCurrency: row.default_currency as string,
@@ -36,6 +40,10 @@ export function mapGroup(row: Record<string, unknown>): Group {
   return {
     id: row.id as string,
     name: row.name as string,
+    groupType: ((row.group_type as string | null) ?? "other") as Group["groupType"],
+    startDate: (row.start_date as string | null) ?? undefined,
+    endDate: (row.end_date as string | null) ?? undefined,
+    budgetCents: row.budget_cents == null ? undefined : Number(row.budget_cents),
     coverPhotoUrl: (row.cover_photo_url as string | null) ?? undefined,
     defaultCurrency: row.default_currency as string,
     simplifyDebts: row.simplify_debts as boolean,
@@ -54,9 +62,11 @@ export function mapGroupMember(row: Record<string, unknown>): GroupMember {
   };
 }
 
-// expenses fetched with a nested `expense_shares(*)` select.
+// expenses fetched with nested `expense_shares(*)` and
+// `expense_items(*, expense_item_assignees(user_id))` selects.
 export function mapExpense(row: Record<string, unknown>): Expense {
   const shareRows = (row.expense_shares as Record<string, unknown>[] | null) ?? [];
+  const itemRows = (row.expense_items as Record<string, unknown>[] | null) ?? [];
   return {
     id: row.id as string,
     groupId: (row.group_id as string | null) ?? undefined,
@@ -69,6 +79,18 @@ export function mapExpense(row: Record<string, unknown>): Expense {
     repeatInterval: row.repeat_interval as Expense["repeatInterval"],
     recurringTemplateId: (row.recurring_template_id as string | null) ?? undefined,
     receiptUrl: (row.receipt_url as string | null) ?? undefined,
+    notes: (row.notes as string | null) ?? undefined,
+    items: itemRows.length
+      ? itemRows
+          .map((i) => ({
+            id: i.id as string,
+            name: i.name as string,
+            amountCents: Number(i.amount_cents),
+            kind: i.kind as ExpenseItem["kind"],
+            assignedUserIds: ((i.expense_item_assignees as { user_id: string }[] | null) ?? []).map((a) => a.user_id),
+          }))
+          .sort((a, b) => a.name.localeCompare(b.name))
+      : undefined,
     createdBy: row.created_by as string,
     shares: shareRows.map((s) => ({
       userId: s.user_id as string,
@@ -132,6 +154,18 @@ export function mapNotification(row: Record<string, unknown>): AppNotification {
     body: (row.body as string | null) ?? "",
     data: (row.data as AppNotification["data"] | null) ?? {},
     readAt: (row.read_at as string | null) ?? undefined,
+    createdAt: row.created_at as string,
+  };
+}
+
+export function mapHistory(row: Record<string, unknown>): ExpenseHistoryEntry {
+  return {
+    id: row.id as string,
+    expenseId: row.expense_id as string,
+    changedBy: (row.changed_by as string | null) ?? undefined,
+    action: row.action as ExpenseHistoryEntry["action"],
+    before: (row.before as ExpenseHistoryEntry["before"] | null) ?? undefined,
+    after: (row.after as ExpenseHistoryEntry["after"] | null) ?? undefined,
     createdAt: row.created_at as string,
   };
 }

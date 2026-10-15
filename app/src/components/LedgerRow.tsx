@@ -40,7 +40,7 @@ export function LedgerRow({ icon, title, subtitle, amount, caption, tone, strike
     >
       {icon ? (
         <View className="h-10 w-10 items-center justify-center rounded-sm bg-surface">
-          <Feather name={icon} size={18} color="#6b7280" />
+          <Feather name={icon} size={18} className="text-muted" />
         </View>
       ) : null}
       <View className="flex-1">

@@ -12,6 +12,7 @@ import {
   mapFriendship,
   mapGroup,
   mapGroupMember,
+  mapHistory,
   mapNotification,
   mapPayment,
   mapUser,
@@ -23,6 +24,7 @@ import type {
   Balance,
   Expense,
   ExpenseComment,
+  ExpenseHistoryEntry,
   Group,
   GroupMember,
   NotificationPrefs,
@@ -43,7 +45,15 @@ type NewExpenseInput = {
   paidBy: { userId: string; amountCents: number }[];
   owedBy: { userId: string; owedCents: number }[];
   repeatInterval?: Expense["repeatInterval"];
+  notes?: string;
+  /** itemized bills: kept for display/editing; shares are computed by the app */
+  items?: ExpenseItemInput[];
 };
+
+export type ExpenseItemInput = { name: string; amountCents: number; kind?: "item" | "tax" | "tip" | "discount"; userIds: string[] };
+
+const itemsPayload = (items: ExpenseItemInput[]) =>
+  items.map((i) => ({ name: i.name, amount_cents: i.amountCents, kind: i.kind ?? "item", user_ids: i.userIds }));
 
 type NewPaymentInput = {
   groupId?: string;
@@ -53,13 +63,21 @@ type NewPaymentInput = {
   currencyCode: string;
 };
 
+type AddedUser = { id: string; name: string; pending: boolean };
 export type AddFriendResult =
-  | { status: "added"; user: Pick<User, "id" | "name"> }
-  | { status: "already"; user: Pick<User, "id" | "name"> }
-  // not on Tabmate yet: exactly one of email/phone is set (phone normalized)
-  | { status: "invited"; email: string | null; phone: string | null }
+  | { status: "added"; user: AddedUser }
+  | { status: "already"; user: AddedUser }
+  // not on Tabmate yet, created as a pending friend you can add to groups
+  // and expenses right away; email/phone is where to send the invite
+  | { status: "invited"; user: AddedUser; email: string | null; phone: string | null }
+  // not on Tabmate and no name given yet — ask for one, then call again
+  | { status: "needs_name"; email: string | null; phone: string | null }
   | { status: "self" }
   | { status: "invalid" };
+
+export type AddGroupMemberResult =
+  | AddFriendResult
+  | ({ status: "added_to_group" | "already_member"; user_id: string } & Partial<{ user: AddedUser; email: string | null; phone: string | null }>);
 
 /** A phone contact who's already on Tabmate, keyed by the contact's raw number/email. */
 export type ContactMatch = { userId: string; name: string; isFriend: boolean };
@@ -78,8 +96,14 @@ type DataContextValue = {
   listMyGroups: () => Group[];
   listGroupMembers: (groupId: string) => User[];
   listFriends: () => User[];
-  /** Email or mobile number — the server tells them apart. */
-  addFriend: (identifier: string) => Promise<AddFriendResult>;
+  /** Email or mobile number — the server tells them apart. `name` is only
+   * needed (and used) when they're not on Tabmate yet. */
+  addFriend: (identifier: string, name?: string) => Promise<AddFriendResult>;
+  /** Add an existing friend by id, or anyone by email/number (+ name if new). */
+  addGroupMember: (
+    groupId: string,
+    who: { userId: string } | { identifier: string; name?: string }
+  ) => Promise<AddGroupMemberResult>;
   /** Which of these phone contacts are on Tabmate; keyed by the raw phone/email passed in. */
   matchContacts: (phones: string[], emails: string[]) => Promise<Map<string, ContactMatch>>;
 
@@ -100,7 +124,13 @@ type DataContextValue = {
   getTotalBalance: () => number;
 
   createGroup: (name: string, memberIds: string[]) => Promise<Group>;
-  updateGroup: (id: string, patch: Partial<Pick<Group, "name" | "simplifyDebts">>) => Promise<void>;
+  updateGroup: (
+    id: string,
+    patch: Partial<Pick<Group, "name" | "simplifyDebts" | "groupType" | "startDate" | "endDate" | "budgetCents">>
+  ) => Promise<void>;
+  /** The group's kitty (common pool) member, if it has one. */
+  getGroupKitty: (groupId: string) => User | undefined;
+  enableKitty: (groupId: string) => Promise<string>;
   removeMember: (groupId: string, userId: string) => Promise<void>;
   leaveGroup: (groupId: string) => Promise<void>;
   createGroupInvite: (groupId: string) => Promise<string>;
@@ -108,7 +138,8 @@ type DataContextValue = {
   previewGroupByCode: (code: string) => Promise<Group | null>;
 
   createExpense: (input: NewExpenseInput) => Promise<Expense>;
-  updateExpense: (id: string, patch: Partial<Expense>) => Promise<void>;
+  updateExpense: (id: string, patch: Partial<Expense> & { itemsInput?: ExpenseItemInput[] }) => Promise<void>;
+  getExpenseHistory: (expenseId: string) => Promise<ExpenseHistoryEntry[]>;
   softDeleteExpense: (id: string) => Promise<void>;
   restoreExpense: (id: string) => Promise<void>;
 
@@ -117,6 +148,8 @@ type DataContextValue = {
   getFriendPayments: (friendId: string) => Payment[];
   getGroupPayments: (groupId: string) => Payment[];
   cancelPayment: (id: string) => Promise<void>;
+  /** In-app + push nudge to someone who owes you (max once a day per person). */
+  sendReminder: (userId: string, amountCents: number, currencyCode: string) => Promise<"sent" | "too_soon">;
 
   listComments: (expenseId: string) => ExpenseComment[];
   addComment: (expenseId: string, body: string) => Promise<void>;
@@ -152,6 +185,7 @@ const TABLE_INVALIDATES: Record<string, CacheKey[]> = {
   friendships: ["friendships", "users"],
   expenses: ["expenses", "users", "friendships"],
   expense_shares: ["expenses"],
+  expense_items: ["expenses"],
   payments: ["payments"],
   expense_comments: ["comments"],
   activity_items: ["activity"],
@@ -194,7 +228,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     if (data) setGroupMembers(data.map(mapGroupMember));
   }, []);
   const fetchExpenses = useCallback(async () => {
-    const { data } = await supabase.from("expenses").select("*, expense_shares(*)");
+    const { data } = await supabase
+      .from("expenses")
+      .select("*, expense_shares(*), expense_items(*, expense_item_assignees(user_id))");
     if (data) setExpenses(data.map(mapExpense));
   }, []);
   const fetchPayments = useCallback(async () => {
@@ -277,6 +313,12 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     async function load() {
       await refetchAll();
       if (!cancelled) setReady(true);
+      // Fallback for projects without pg_cron: post any due recurring
+      // expenses (rent, wifi, ...). Idempotent; realtime picks up new rows.
+      supabase.rpc("post_recurring_expenses").then(
+        () => {},
+        () => {}
+      );
     }
 
     // Realtime: any insert/update/delete on these tables — by this user, a
@@ -339,7 +381,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       if (!userId) return;
       const payload: Record<string, unknown> = {};
       if (patch.name !== undefined) payload.name = patch.name;
-      // normalized (+91 default) and checked server-side
+      // normalized (+91 default) server-side; not OTP-verified (product decision)
       if (patch.phone !== undefined) payload.phone = patch.phone?.trim() || null;
       if (patch.defaultCurrency !== undefined) payload.default_currency = patch.defaultCurrency;
       if (patch.upiId !== undefined) payload.upi_id = patch.upiId || null;
@@ -351,9 +393,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         throw new Error("That doesn't look like a valid mobile number. Add the country code if it's not Indian, e.g. +44…");
       }
       check(error, "Couldn't save your profile");
-      await fetchUsers();
+      // a new number can take over a pending (invited) person — reload what moved
+      if (patch.phone !== undefined) await refetchAll();
+      else await fetchUsers();
     },
-    [userId, fetchUsers]
+    [userId, fetchUsers, refetchAll]
   );
 
   const getGroup = useCallback((id: string) => groups.find((g) => g.id === id), [groups]);
@@ -390,23 +434,42 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       if (f.userIdA === userId) ids.add(f.userIdB);
       if (f.userIdB === userId) ids.add(f.userIdA);
     }
-    return [...ids].map((id) => getUser(id)).filter((u): u is User => !!u);
+    return [...ids].map((id) => getUser(id)).filter((u): u is User => !!u && !u.isKitty);
   }, [groupMembers, expenses, friendships, userId, getUser]);
 
   // Existing user -> friendship + a notification to them. Not on Tabmate
   // yet -> a pending invite; they're auto-friended the moment they sign up
   // with that email (handle_new_auth_user, migration 002).
   const addFriend = useCallback(
-    async (identifier: string): Promise<AddFriendResult> => {
-      const { data, error } = await supabase.rpc("add_friend", { p_identifier: identifier.trim() });
+    async (identifier: string, name?: string): Promise<AddFriendResult> => {
+      const { data, error } = await supabase.rpc("add_friend", {
+        p_identifier: identifier.trim(),
+        p_name: name?.trim() || null,
+      });
       check(error, "Couldn't add friend");
       const result = data as AddFriendResult;
-      if (result.status === "added" || result.status === "already") {
+      if (result.status === "added" || result.status === "already" || result.status === "invited") {
         await Promise.all([fetchFriendships(), fetchUsers()]);
       }
       return result;
     },
     [fetchFriendships, fetchUsers]
+  );
+
+  const addGroupMember = useCallback(
+    async (groupId: string, who: { userId: string } | { identifier: string; name?: string }) => {
+      const { data, error } = await supabase.rpc(
+        "add_group_member",
+        "userId" in who
+          ? { p_group_id: groupId, p_user_id: who.userId }
+          : { p_group_id: groupId, p_identifier: who.identifier.trim(), p_name: who.name?.trim() || null }
+      );
+      check(error, "Couldn't add them to the group");
+      const result = data as AddGroupMemberResult;
+      if (result.status === "added_to_group") await Promise.all([fetchGroupMembers(), fetchUsers(), fetchFriendships()]);
+      return result;
+    },
+    [fetchGroupMembers, fetchUsers, fetchFriendships]
   );
 
   const matchContacts = useCallback(async (phones: string[], emails: string[]) => {
@@ -524,10 +587,17 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   );
 
   const updateGroup = useCallback(
-    async (id: string, patch: Partial<Pick<Group, "name" | "simplifyDebts">>) => {
+    async (
+      id: string,
+      patch: Partial<Pick<Group, "name" | "simplifyDebts" | "groupType" | "startDate" | "endDate" | "budgetCents">>
+    ) => {
       const payload: Record<string, unknown> = {};
       if (patch.name !== undefined) payload.name = patch.name;
       if (patch.simplifyDebts !== undefined) payload.simplify_debts = patch.simplifyDebts;
+      if (patch.groupType !== undefined) payload.group_type = patch.groupType;
+      if ("startDate" in patch) payload.start_date = patch.startDate || null;
+      if ("endDate" in patch) payload.end_date = patch.endDate || null;
+      if ("budgetCents" in patch) payload.budget_cents = patch.budgetCents || null;
       const { error } = await supabase.from("groups").update(payload).eq("id", id);
       check(error, "Couldn't update the group");
       await fetchGroups();
@@ -546,6 +616,25 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       await fetchGroupMembers();
     },
     [fetchGroupMembers]
+  );
+
+  const getGroupKitty = useCallback(
+    (groupId: string) =>
+      groupMembers
+        .filter((m) => m.groupId === groupId && !m.leftAt)
+        .map((m) => getUser(m.userId))
+        .find((u): u is User => !!u && u.isKitty),
+    [groupMembers, getUser]
+  );
+
+  const enableKitty = useCallback(
+    async (groupId: string) => {
+      const { data, error } = await supabase.rpc("enable_kitty", { p_group_id: groupId });
+      check(error, "Couldn't start a kitty");
+      await Promise.all([fetchGroupMembers(), fetchUsers()]);
+      return data as string;
+    },
+    [fetchGroupMembers, fetchUsers]
   );
 
   const leaveGroup = useCallback((groupId: string) => (userId ? removeMember(groupId, userId) : Promise.resolve()), [removeMember, userId]);
@@ -567,6 +656,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       coverPhotoUrl: row.cover_photo_url ?? undefined,
       defaultCurrency: "INR",
       simplifyDebts: true,
+      groupType: "other",
       createdBy: "",
       createdAt: "",
     } satisfies Group;
@@ -599,6 +689,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         expense_date: input.expenseDate,
         split_type: input.splitType,
         repeat_interval: input.repeatInterval ?? "none",
+        notes: input.notes ?? null,
+        ...(input.items ? { items: itemsPayload(input.items) } : {}),
         shares: input.owedBy.map((o) => ({
           user_id: o.userId,
           owed_cents: o.owedCents,
@@ -614,9 +706,12 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   );
 
   const updateExpense = useCallback(
-    async (id: string, patch: Partial<Expense>) => {
+    async (id: string, patch: Partial<Expense> & { itemsInput?: ExpenseItemInput[] }) => {
       const payload: Record<string, unknown> = {};
       if (patch.description !== undefined) payload.description = patch.description;
+      if (patch.expenseDate !== undefined) payload.expense_date = patch.expenseDate;
+      if ("notes" in patch) payload.notes = patch.notes ?? null;
+      if (patch.itemsInput !== undefined) payload.items = itemsPayload(patch.itemsInput);
       if (patch.amountCents !== undefined) payload.amount_cents = patch.amountCents;
       if (patch.category !== undefined) payload.category = patch.category;
       if (patch.splitType !== undefined) payload.split_type = patch.splitType;
@@ -630,6 +725,16 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     },
     [fetchExpenses]
   );
+
+  const getExpenseHistory = useCallback(async (expenseId: string) => {
+    const { data, error } = await supabase
+      .from("expense_history")
+      .select("*")
+      .eq("expense_id", expenseId)
+      .order("created_at", { ascending: true });
+    check(error, "Couldn't load history");
+    return (data ?? []).map(mapHistory);
+  }, []);
 
   const softDeleteExpense = useCallback(
     async (id: string) => {
@@ -689,6 +794,16 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     },
     [fetchPayments, fetchActivity]
   );
+
+  const sendReminder = useCallback(async (toUserId: string, amountCents: number, currencyCode: string) => {
+    const { data, error } = await supabase.rpc("send_payment_reminder", {
+      p_user: toUserId,
+      p_amount_cents: amountCents,
+      p_currency: currencyCode,
+    });
+    check(error, "Couldn't send the reminder");
+    return ((data as { status: string }).status === "too_soon" ? "too_soon" : "sent") as "sent" | "too_soon";
+  }, []);
 
   const listComments = useCallback(
     (expenseId: string) => comments.filter((c) => c.expenseId === expenseId).sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
@@ -754,6 +869,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       listGroupMembers,
       listFriends,
       addFriend,
+      addGroupMember,
       matchContacts,
       getGroupExpenses,
       getExpense,
@@ -767,6 +883,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       getTotalBalance,
       createGroup,
       updateGroup,
+      getGroupKitty,
+      enableKitty,
       removeMember,
       leaveGroup,
       createGroupInvite,
@@ -774,6 +892,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       previewGroupByCode,
       createExpense,
       updateExpense,
+      getExpenseHistory,
       softDeleteExpense,
       restoreExpense,
       createPayment,
@@ -781,6 +900,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       getFriendPayments,
       getGroupPayments,
       cancelPayment,
+      sendReminder,
       listComments,
       addComment,
       getActivityFeed,
@@ -803,6 +923,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     listGroupMembers,
     listFriends,
     addFriend,
+    addGroupMember,
     matchContacts,
     getGroupExpenses,
     getExpense,
@@ -816,6 +937,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     getTotalBalance,
     createGroup,
     updateGroup,
+    getGroupKitty,
+    enableKitty,
     removeMember,
     leaveGroup,
     createGroupInvite,
@@ -823,6 +946,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     previewGroupByCode,
     createExpense,
     updateExpense,
+    getExpenseHistory,
     softDeleteExpense,
     restoreExpense,
     createPayment,
@@ -830,6 +954,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     getFriendPayments,
     getGroupPayments,
     cancelPayment,
+    sendReminder,
     listComments,
     addComment,
     getActivityFeed,
@@ -856,7 +981,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   if (authLoading) {
     return (
       <View className="flex-1 items-center justify-center bg-bg">
-        <ActivityIndicator color="#5b5fef" />
+        <ActivityIndicator className="text-accent" />
       </View>
     );
   }
@@ -864,7 +989,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   if (!ready || !value) {
     return (
       <View className="flex-1 items-center justify-center bg-bg">
-        <ActivityIndicator color="#5b5fef" />
+        <ActivityIndicator className="text-accent" />
       </View>
     );
   }

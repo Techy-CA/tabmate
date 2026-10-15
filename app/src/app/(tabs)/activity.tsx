@@ -44,7 +44,7 @@ export default function Activity() {
           items.map((a) => (
             <View key={a.id} className="flex-row items-center gap-3 border-b border-border py-3">
               <View className="h-9 w-9 items-center justify-center rounded-pill bg-surface">
-                <Feather name={ICON[a.type]} size={16} color="#6b7280" />
+                <Feather name={ICON[a.type]} size={16} className="text-muted" />
               </View>
               <View className="flex-1">
                 <Text className="font-sans text-sm text-text">

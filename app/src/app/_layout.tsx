@@ -5,14 +5,17 @@ import { Manrope_700Bold, useFonts as useManrope } from "@expo-google-fonts/manr
 import { Stack, useRouter } from "expo-router";
 import { useEffect } from "react";
 import * as SplashScreen from "expo-splash-screen";
+import { StatusBar } from "expo-status-bar";
 import { Text, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { ConfirmDialogHost } from "@/components/ConfirmDialogHost";
+import { AppLockProvider } from "@/lib/appLock";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { DataProvider, useOptionalData } from "@/lib/data/store";
 import { usePushNotifications } from "@/lib/push";
 import { supabaseConfigError } from "@/lib/supabase";
+import { ThemeProvider, useTheme } from "@/lib/theme";
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -24,6 +27,22 @@ function PushBridge() {
   const data = useOptionalData();
   usePushNotifications(router, isAuthenticated && !!data, data?.markNotificationRead);
   return null;
+}
+
+// Applies the light/dark colour variables to everything below it.
+function ThemedRoot({ children }: { children: React.ReactNode }) {
+  const { rootStyle, colors, scheme } = useTheme();
+  return (
+    <View style={[{ flex: 1, backgroundColor: colors.bg }, rootStyle]}>
+      <StatusBar style={scheme === "dark" ? "light" : "dark"} />
+      {children}
+    </View>
+  );
+}
+
+function AppStack() {
+  const { colors } = useTheme();
+  return <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }} />;
 }
 
 export default function RootLayout() {
@@ -48,13 +67,19 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider>
-      <AuthProvider>
-        <DataProvider>
-          <Stack screenOptions={{ headerShown: false }} />
-          <ConfirmDialogHost />
-          <PushBridge />
-        </DataProvider>
-      </AuthProvider>
+      <ThemeProvider>
+        <ThemedRoot>
+          <AppLockProvider>
+            <AuthProvider>
+              <DataProvider>
+                <AppStack />
+                <ConfirmDialogHost />
+                <PushBridge />
+              </DataProvider>
+            </AuthProvider>
+          </AppLockProvider>
+        </ThemedRoot>
+      </ThemeProvider>
     </SafeAreaProvider>
   );
 }

@@ -70,7 +70,7 @@ export default function PaymentDetail() {
           accessibilityLabel="Back"
           onPress={() => goBack(router, counterpart ? `/friend/${counterpart.id}` : "/")}
         >
-          <Feather name="arrow-left" size={22} color="#1f2430" />
+          <Feather name="arrow-left" size={22} className="text-text" />
         </Pressable>
         <Text className="font-display text-lg text-text">Payment</Text>
         <View className="w-6" />

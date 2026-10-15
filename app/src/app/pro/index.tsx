@@ -19,7 +19,7 @@ export default function Pro() {
     <SafeAreaView className="flex-1 bg-bg">
       <View className="flex-row items-center gap-3 border-b border-border p-4">
         <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => goBack(router, "/")}>
-          <Feather name="arrow-left" size={22} color="#1f2430" />
+          <Feather name="arrow-left" size={22} className="text-text" />
         </Pressable>
         <Text className="font-display text-lg text-text">Tabmate Pro</Text>
       </View>
@@ -33,7 +33,7 @@ export default function Pro() {
         <View className="gap-4">
           {FEATURES.map((f) => (
             <View key={f.title} className="flex-row gap-3 rounded-lg border border-border bg-surface p-4">
-              <Feather name={f.icon} size={20} color="#5b5fef" />
+              <Feather name={f.icon} size={20} className="text-accent" />
               <View className="flex-1 gap-0.5">
                 <Text className="font-sans-semibold text-sm text-text">{f.title}</Text>
                 <Text className="font-sans text-xs text-muted">{f.body}</Text>

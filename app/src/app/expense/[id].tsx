@@ -1,14 +1,16 @@
 import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Avatar } from "@/components/Avatar";
 import { Button } from "@/components/Button";
+import { prettyDate } from "@/components/DateField";
 import { Input } from "@/components/Input";
 import { formatCents } from "@/lib/data/balances";
 import { useData } from "@/lib/data/store";
+import type { ExpenseHistoryEntry, ExpenseSnapshot } from "@/lib/data/types";
 import { confirmAction } from "@/lib/confirm";
 import { goBack } from "@/lib/nav";
 
@@ -16,7 +18,8 @@ import { goBack } from "@/lib/nav";
 export default function ExpenseDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { getExpense, getUser, currentUser, listComments, addComment, softDeleteExpense, restoreExpense } = useData();
+  const { getExpense, getUser, currentUser, listComments, addComment, softDeleteExpense, restoreExpense, getExpenseHistory } =
+    useData();
   const [comment, setComment] = useState("");
   const [sending, setSending] = useState(false);
   const [actionError, setActionError] = useState<string | undefined>();
@@ -33,6 +36,22 @@ export default function ExpenseDetail() {
   };
 
   const expense = getExpense(id);
+  const [history, setHistory] = useState<ExpenseHistoryEntry[]>([]);
+  // reload whenever the expense itself changes (edit, delete, restore)
+  const version = expense ? `${expense.updatedAt}|${expense.deletedAt ?? ""}` : "";
+  useEffect(() => {
+    if (!version) return;
+    let cancelled = false;
+    getExpenseHistory(id)
+      .then((h) => {
+        if (!cancelled) setHistory(h);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [id, version, getExpenseHistory]);
+
   if (!expense) {
     return (
       <SafeAreaView className="flex-1 items-center justify-center bg-bg">
@@ -44,6 +63,8 @@ export default function ExpenseDetail() {
 
   const comments = listComments(expense.id);
   const payer = expense.shares.find((s) => s.paidCents > 0);
+  const payerUser = payer ? getUser(payer.userId) : undefined;
+  const payerName = payer?.userId === currentUser.id ? "You" : payerUser?.isKitty ? "Kitty" : payerUser?.name ?? "Someone";
 
   const confirmDelete = () => {
     confirmAction({
@@ -63,9 +84,9 @@ export default function ExpenseDetail() {
           accessibilityLabel="Back"
           onPress={() => goBack(router, expense.groupId ? `/group/${expense.groupId}` : "/")}
         >
-          <Feather name="arrow-left" size={22} color="#1f2430" />
+          <Feather name="arrow-left" size={22} className="text-text" />
         </Pressable>
-        <Text className="font-display text-lg text-text" numberOfLines={1}>
+        <Text className="mx-3 flex-1 font-display text-lg text-text" numberOfLines={1}>
           {expense.description}
         </Text>
         <View className="flex-row items-center gap-4">
@@ -79,7 +100,7 @@ export default function ExpenseDetail() {
                 )
               }
             >
-              <Feather name="edit-2" size={20} color="#1f2430" />
+              <Feather name="edit-2" size={20} className="text-text" />
             </Pressable>
           ) : null}
           <Pressable
@@ -87,7 +108,7 @@ export default function ExpenseDetail() {
             accessibilityLabel={expense.deletedAt ? "Restore expense" : "Delete expense"}
             onPress={() => (expense.deletedAt ? run(() => restoreExpense(expense.id)) : confirmDelete())}
           >
-            <Feather name={expense.deletedAt ? "rotate-ccw" : "trash-2"} size={20} color="#1f2430" />
+            <Feather name={expense.deletedAt ? "rotate-ccw" : "trash-2"} size={20} className="text-text" />
           </Pressable>
         </View>
       </View>
@@ -105,9 +126,48 @@ export default function ExpenseDetail() {
         <View className="items-center gap-1">
           <Text className="font-display text-display text-text">{formatCents(expense.amountCents, expense.currencyCode)}</Text>
           <Text className="font-sans text-sm text-muted">
-            {getUser(payer?.userId ?? "")?.name ?? "Someone"} paid on {expense.expenseDate}
+            {payerName} paid · {prettyDate(expense.expenseDate)}
           </Text>
+          {expense.repeatInterval !== "none" || expense.recurringTemplateId ? (
+            <View className="mt-1 flex-row items-center gap-1 rounded-pill bg-accent/10 px-3 py-1">
+              <Feather name="repeat" size={12} className="text-accent" />
+              <Text className="font-sans-medium text-xs text-accent">
+                {expense.recurringTemplateId ? "Added automatically (recurring)" : `Repeats ${expense.repeatInterval}`}
+              </Text>
+            </View>
+          ) : null}
         </View>
+
+        {expense.notes ? (
+          <View className="gap-1 rounded-lg bg-surface p-4">
+            <Text className="font-sans-semibold text-xs text-muted">Notes</Text>
+            <Text className="font-sans text-sm text-text">{expense.notes}</Text>
+          </View>
+        ) : null}
+
+        {expense.items?.length ? (
+          <View className="gap-2 rounded-lg border border-border p-4">
+            <Text className="font-sans-semibold text-sm text-text">Bill items</Text>
+            {[...expense.items]
+              .sort((a, b) => (a.kind === "item" ? 0 : 1) - (b.kind === "item" ? 0 : 1))
+              .map((it) => (
+                <View key={it.id} className="flex-row items-start justify-between gap-3">
+                  <View className="flex-1">
+                    <Text className="font-sans text-sm text-text">{it.name}</Text>
+                    <Text className="font-sans text-xs text-muted">
+                      {it.kind === "item"
+                        ? it.assignedUserIds.map((u) => (u === currentUser.id ? "You" : getUser(u)?.name ?? "?")).join(", ")
+                        : "shared in proportion"}
+                    </Text>
+                  </View>
+                  <Text className={`font-sans-medium text-sm ${it.kind === "discount" ? "text-success" : "text-text"}`}>
+                    {it.kind === "discount" ? "−" : ""}
+                    {formatCents(it.amountCents, expense.currencyCode)}
+                  </Text>
+                </View>
+              ))}
+          </View>
+        ) : null}
 
         <View className="gap-2 rounded-lg border border-border p-4">
           <Text className="font-sans-semibold text-sm text-text">
@@ -135,7 +195,9 @@ export default function ExpenseDetail() {
               <View key={s.userId} className="flex-row items-center justify-between py-1.5">
                 <View className="flex-row items-center gap-2">
                   <Avatar id={s.userId} name={user?.name ?? "?"} size="xs" />
-                  <Text className="font-sans text-sm text-text">{s.userId === currentUser.id ? "You" : user?.name}</Text>
+                  <Text className="font-sans text-sm text-text">
+                    {s.userId === currentUser.id ? "You" : user?.isKitty ? "Kitty" : user?.name}
+                  </Text>
                 </View>
                 <Text className="font-sans text-sm text-muted">{line}</Text>
               </View>
@@ -179,7 +241,57 @@ export default function ExpenseDetail() {
             />
           </View>
         </View>
+
+        {history.length > 0 ? (
+          <View className="gap-2">
+            <Text className="font-sans-semibold text-sm text-text">History</Text>
+            {[...history].reverse().map((h) => {
+              const who = !h.changedBy ? "Tabmate" : h.changedBy === currentUser.id ? "You" : getUser(h.changedBy)?.name ?? "Someone";
+              const changes = h.action === "edited" && h.before && h.after ? describeChanges(h.before, h.after, expense.currencyCode) : [];
+              return (
+                <View key={h.id} className="flex-row gap-3">
+                  <View className="mt-1.5 h-2 w-2 rounded-pill bg-border-input" />
+                  <View className="flex-1 gap-0.5">
+                    <Text className="font-sans text-sm text-text">
+                      <Text className="font-sans-semibold">{who}</Text> {ACTION_TEXT[h.action]}
+                    </Text>
+                    {changes.map((c) => (
+                      <Text key={c} className="font-sans text-xs text-muted">
+                        {c}
+                      </Text>
+                    ))}
+                    <Text className="font-sans text-xs text-muted">
+                      {new Date(h.createdAt).toLocaleString([], { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                    </Text>
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+        ) : null}
       </ScrollView>
     </SafeAreaView>
   );
+}
+
+const ACTION_TEXT: Record<ExpenseHistoryEntry["action"], string> = {
+  created: "added this expense",
+  edited: "edited it",
+  deleted: "deleted it",
+  restored: "restored it",
+};
+
+/** Human-readable list of what an edit changed. */
+function describeChanges(before: ExpenseSnapshot, after: ExpenseSnapshot, currency: string): string[] {
+  const out: string[] = [];
+  const money = (c: number) => formatCents(Number(c), currency);
+  if (before.description !== after.description) out.push(`Name: "${before.description}" → "${after.description}"`);
+  if (Number(before.amount_cents) !== Number(after.amount_cents)) {
+    out.push(`Amount: ${money(before.amount_cents)} → ${money(after.amount_cents)}`);
+  }
+  if (before.expense_date !== after.expense_date) out.push(`Date: ${prettyDate(before.expense_date)} → ${prettyDate(after.expense_date)}`);
+  if (before.category !== after.category) out.push(`Category: ${before.category} → ${after.category}`);
+  if ((before.notes ?? "") !== (after.notes ?? "")) out.push(after.notes ? `Notes: "${after.notes}"` : "Notes removed");
+  if (JSON.stringify(before.shares) !== JSON.stringify(after.shares)) out.push("Who paid / who owes was changed");
+  return out;
 }
