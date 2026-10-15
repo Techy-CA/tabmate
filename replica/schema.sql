@@ -3,7 +3,7 @@
 -- All timestamps are timestamptz in UTC. Paste this whole file into the Supabase SQL Editor
 -- (Project -> SQL Editor -> New query) and run it once against a fresh project.
 -- Then run, in order: migration_payment_handles.sql, migration_002_realtime_notifications.sql,
--- migration_003_payment_allocation.sql
+-- migration_003_payment_allocation.sql, migration_004_phone_friends.sql
 -- (002 replaces several functions/policies below with fixed versions and enables realtime).
 
 create extension if not exists "pgcrypto";

@@ -18,6 +18,7 @@ export function mapUser(row: Record<string, unknown>): User {
     id: row.id as string,
     name: row.name as string,
     email: row.email as string,
+    phone: (row.phone as string | null) ?? undefined,
     avatarUrl: (row.avatar_url as string | null) ?? undefined,
     defaultCurrency: row.default_currency as string,
     timezone: row.timezone as string,

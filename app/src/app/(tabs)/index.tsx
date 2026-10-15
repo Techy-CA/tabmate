@@ -1,5 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import { useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -17,12 +18,48 @@ export default function Home() {
     listFriends,
     listGroupMembers,
     getGroupBalances,
+    getGroupExpenses,
     getFriendBalance,
     currentUser,
     unreadNotificationCount,
   } = useData();
   const groups = listMyGroups();
+  const [showSettled, setShowSettled] = useState(false);
+  const myGroupBalance = (groupId: string) => getGroupBalances(groupId).find((b) => b.userId === currentUser.id);
+  // A group you're square in, that has had expenses, is "done" — tuck it
+  // into a collapsed section so the list shows what still needs attention.
+  // Brand-new groups (no expenses yet) stay up top.
+  const isSettled = (groupId: string) =>
+    !myGroupBalance(groupId) && getGroupExpenses(groupId).some((e) => !e.deletedAt);
+  const activeGroups = groups.filter((g) => !isSettled(g.id));
+  const settledGroups = groups.filter((g) => isSettled(g.id));
   const friends = listFriends();
+
+  const renderGroup = (g: (typeof groups)[number], muted = false) => {
+    const mine = myGroupBalance(g.id);
+    return (
+      <Pressable
+        key={g.id}
+        onPress={() => router.push(`/group/${g.id}`)}
+        accessibilityRole="button"
+        accessibilityLabel={`${g.name}${mine ? `, ${formatCents(mine.balanceCents, g.defaultCurrency)}` : ", settled up"}`}
+        className={`flex-row items-center justify-between rounded-lg border border-border p-4 ${muted ? "bg-surface" : "bg-bg"}`}
+      >
+        <View className="flex-1 gap-1">
+          <Text className={`font-sans-semibold text-base ${muted ? "text-muted" : "text-text"}`}>{g.name}</Text>
+          <Text className="font-sans text-xs text-muted">{listGroupMembers(g.id).length} members</Text>
+        </View>
+        {mine ? (
+          <BalanceStack
+            state={mine.balanceCents > 0 ? "owed-to-you" : "you-owe"}
+            amount={formatCents(Math.abs(mine.balanceCents), g.defaultCurrency)}
+          />
+        ) : (
+          <BalanceStack state="settled" />
+        )}
+      </Pressable>
+    );
+  };
 
   return (
     <SafeAreaView className="flex-1 bg-bg" edges={["top"]}>
@@ -83,33 +120,24 @@ export default function Home() {
               body="Start one for a trip, a flat, or anything you split often."
             />
           ) : (
-            groups.map((g) => {
-              const mine = getGroupBalances(g.id).find((b) => b.userId === currentUser.id);
-              return (
+            <>
+              {activeGroups.map((g) => renderGroup(g))}
+              {activeGroups.length === 0 ? (
+                <Text className="py-2 font-sans text-sm text-muted">You&apos;re settled up in every group.</Text>
+              ) : null}
+              {settledGroups.length > 0 ? (
                 <Pressable
-                  key={g.id}
-                  onPress={() => router.push(`/group/${g.id}`)}
+                  onPress={() => setShowSettled((v) => !v)}
                   accessibilityRole="button"
-                  accessibilityLabel={`${g.name}${mine ? `, ${formatCents(mine.balanceCents, g.defaultCurrency)}` : ", settled up"}`}
-                  className="flex-row items-center justify-between rounded-lg border border-border bg-bg p-4"
+                  accessibilityState={{ expanded: showSettled }}
+                  className="flex-row items-center justify-between py-2"
                 >
-                  <View className="flex-1 gap-1">
-                    <Text className="font-sans-semibold text-base text-text">{g.name}</Text>
-                    <Text className="font-sans text-xs text-muted">
-                      {listGroupMembers(g.id).length} members
-                    </Text>
-                  </View>
-                  {mine ? (
-                    <BalanceStack
-                      state={mine.balanceCents > 0 ? "owed-to-you" : "you-owe"}
-                      amount={formatCents(Math.abs(mine.balanceCents), g.defaultCurrency)}
-                    />
-                  ) : (
-                    <BalanceStack state="settled" />
-                  )}
+                  <Text className="font-sans-medium text-sm text-muted">Settled up groups ({settledGroups.length})</Text>
+                  <Feather name={showSettled ? "chevron-up" : "chevron-down"} size={18} color="#6b7280" />
                 </Pressable>
-              );
-            })
+              ) : null}
+              {showSettled ? settledGroups.map((g) => renderGroup(g, true)) : null}
+            </>
           )}
         </View>
 

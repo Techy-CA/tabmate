@@ -14,6 +14,7 @@ export default function SignUp() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [phone, setPhone] = useState("");
   const [error, setError] = useState<string | undefined>();
   const [loading, setLoading] = useState(false);
   const [checkEmail, setCheckEmail] = useState(false);
@@ -25,7 +26,7 @@ export default function SignUp() {
     }
     setError(undefined);
     setLoading(true);
-    const result = await signUp(name.trim(), email.trim(), password);
+    const result = await signUp(name.trim(), email.trim(), password, phone);
     setLoading(false);
     if (result === "confirm-email") {
       setCheckEmail(true);
@@ -65,6 +66,14 @@ export default function SignUp() {
           onChangeText={setEmail}
           autoCapitalize="none"
           keyboardType="email-address"
+        />
+        <Input
+          label="Mobile number (optional)"
+          placeholder="98765 43210"
+          value={phone}
+          onChangeText={setPhone}
+          keyboardType="phone-pad"
+          autoComplete="tel"
         />
         <Input
           label="Password"

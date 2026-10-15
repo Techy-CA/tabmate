@@ -22,6 +22,8 @@ export type User = {
   id: string;
   name: string;
   email: string;
+  /** E.164, e.g. +919876543210 — optional, lets friends find you by number */
+  phone?: string;
   avatarUrl?: string;
   defaultCurrency: string;
   timezone: string;

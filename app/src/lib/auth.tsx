@@ -19,7 +19,7 @@ type AuthContextValue = {
   isAuthenticated: boolean;
   userId: string | null;
   loading: boolean;
-  signUp: (name: string, email: string, password: string) => Promise<SignUpResult>;
+  signUp: (name: string, email: string, password: string, phone?: string) => Promise<SignUpResult>;
   signInWithGoogle: () => Promise<string | null>;
   signIn: (email: string, password: string) => Promise<string | null>;
   sendPasswordReset: (email: string) => Promise<string | null>;
@@ -86,11 +86,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isAuthenticated: !!session,
       userId: session?.user.id ?? null,
       loading,
-      signUp: async (name, email, password) => {
+      signUp: async (name, email, password, phone) => {
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
-          options: { data: { name }, emailRedirectTo: authRedirectUrl("auth/callback") },
+          // phone is optional; the server normalizes it and skips it if another account has it
+          options: { data: { name, ...(phone?.trim() ? { phone: phone.trim() } : {}) }, emailRedirectTo: authRedirectUrl("auth/callback") },
         });
         if (error) return error.message;
         if (!data.session) return "confirm-email";

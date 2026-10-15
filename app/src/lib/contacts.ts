@@ -1,4 +1,4 @@
-export type DeviceContact = { name: string; email: string };
+export type DeviceContact = { id: string; name: string; phones: string[]; emails: string[] };
 
 /**
  * Fallback only — Metro always resolves contacts.native.ts or
@@ -7,6 +7,6 @@ export type DeviceContact = { name: string; email: string };
  * `tsc` (which doesn't apply Metro's platform-extension resolution) can
  * resolve the bare "@/lib/contacts" import used in friend/add.tsx.
  */
-export async function pickContactsWithEmail(): Promise<DeviceContact[] | "unavailable"> {
+export async function loadDeviceContacts(): Promise<DeviceContact[] | "unavailable"> {
   return "unavailable";
 }

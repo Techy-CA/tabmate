@@ -55,6 +55,11 @@ export default function Account() {
 
         <View className="border-t border-border">
           <Row
+            icon="smartphone"
+            label={currentUser.phone ? `Mobile number · ${currentUser.phone}` : "Add mobile number"}
+            onPress={() => router.push("/account/phone")}
+          />
+          <Row
             icon="dollar-sign"
             label={`Default currency · ${currentUser.defaultCurrency}`}
             onPress={() => router.push("/account/currency")}

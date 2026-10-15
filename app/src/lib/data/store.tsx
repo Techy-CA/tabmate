@@ -54,11 +54,15 @@ type NewPaymentInput = {
 };
 
 export type AddFriendResult =
-  | { status: "added"; user: Pick<User, "id" | "name" | "email"> }
-  | { status: "already"; user: Pick<User, "id" | "name" | "email"> }
-  | { status: "invited"; email: string }
+  | { status: "added"; user: Pick<User, "id" | "name"> }
+  | { status: "already"; user: Pick<User, "id" | "name"> }
+  // not on Tabmate yet: exactly one of email/phone is set (phone normalized)
+  | { status: "invited"; email: string | null; phone: string | null }
   | { status: "self" }
   | { status: "invalid" };
+
+/** A phone contact who's already on Tabmate, keyed by the contact's raw number/email. */
+export type ContactMatch = { userId: string; name: string; isFriend: boolean };
 
 type DataContextValue = {
   currentUser: User;
@@ -68,13 +72,16 @@ type DataContextValue = {
 
   getUser: (id: string) => User | undefined;
   updateCurrentUser: (
-    patch: Partial<Pick<User, "name" | "defaultCurrency" | "upiId" | "paypalMeHandle" | "venmoUsername">>
+    patch: Partial<Pick<User, "name" | "phone" | "defaultCurrency" | "upiId" | "paypalMeHandle" | "venmoUsername">>
   ) => Promise<void>;
   getGroup: (id: string) => Group | undefined;
   listMyGroups: () => Group[];
   listGroupMembers: (groupId: string) => User[];
   listFriends: () => User[];
-  addFriendByEmail: (email: string) => Promise<AddFriendResult>;
+  /** Email or mobile number — the server tells them apart. */
+  addFriend: (identifier: string) => Promise<AddFriendResult>;
+  /** Which of these phone contacts are on Tabmate; keyed by the raw phone/email passed in. */
+  matchContacts: (phones: string[], emails: string[]) => Promise<Map<string, ContactMatch>>;
 
   getGroupExpenses: (groupId: string) => Expense[];
   getExpense: (id: string) => Expense | undefined;
@@ -328,15 +335,21 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const getUser = useCallback((id: string) => users.find((u) => u.id === id), [users]);
 
   const updateCurrentUser = useCallback(
-    async (patch: Partial<Pick<User, "name" | "defaultCurrency" | "upiId" | "paypalMeHandle" | "venmoUsername">>) => {
+    async (patch: Partial<Pick<User, "name" | "phone" | "defaultCurrency" | "upiId" | "paypalMeHandle" | "venmoUsername">>) => {
       if (!userId) return;
       const payload: Record<string, unknown> = {};
       if (patch.name !== undefined) payload.name = patch.name;
+      // normalized (+91 default) and checked server-side
+      if (patch.phone !== undefined) payload.phone = patch.phone?.trim() || null;
       if (patch.defaultCurrency !== undefined) payload.default_currency = patch.defaultCurrency;
       if (patch.upiId !== undefined) payload.upi_id = patch.upiId || null;
       if (patch.paypalMeHandle !== undefined) payload.paypal_me_handle = patch.paypalMeHandle || null;
       if (patch.venmoUsername !== undefined) payload.venmo_username = patch.venmoUsername || null;
       const { error } = await supabase.from("users").update(payload).eq("id", userId);
+      if (error?.code === "23505") throw new Error("That mobile number is already used by another account.");
+      if (error?.message?.includes("invalid phone number")) {
+        throw new Error("That doesn't look like a valid mobile number. Add the country code if it's not Indian, e.g. +44…");
+      }
       check(error, "Couldn't save your profile");
       await fetchUsers();
     },
@@ -383,9 +396,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   // Existing user -> friendship + a notification to them. Not on Tabmate
   // yet -> a pending invite; they're auto-friended the moment they sign up
   // with that email (handle_new_auth_user, migration 002).
-  const addFriendByEmail = useCallback(
-    async (email: string): Promise<AddFriendResult> => {
-      const { data, error } = await supabase.rpc("add_friend_by_email", { p_email: email.trim() });
+  const addFriend = useCallback(
+    async (identifier: string): Promise<AddFriendResult> => {
+      const { data, error } = await supabase.rpc("add_friend", { p_identifier: identifier.trim() });
       check(error, "Couldn't add friend");
       const result = data as AddFriendResult;
       if (result.status === "added" || result.status === "already") {
@@ -395,6 +408,25 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     },
     [fetchFriendships, fetchUsers]
   );
+
+  const matchContacts = useCallback(async (phones: string[], emails: string[]) => {
+    const result = new Map<string, ContactMatch>();
+    // chunked: the server caps one request at 3000 entries
+    const CHUNK = 1000;
+    const all = [...phones.map((v) => ({ v, phone: true })), ...emails.map((v) => ({ v, phone: false }))];
+    for (let i = 0; i < all.length; i += CHUNK) {
+      const slice = all.slice(i, i + CHUNK);
+      const { data, error } = await supabase.rpc("match_contacts", {
+        p_phones: slice.filter((x) => x.phone).map((x) => x.v),
+        p_emails: slice.filter((x) => !x.phone).map((x) => x.v),
+      });
+      check(error, "Couldn't check your contacts");
+      for (const row of (data ?? []) as { input: string; user_id: string; name: string; is_friend: boolean }[]) {
+        result.set(row.input, { userId: row.user_id, name: row.name, isFriend: row.is_friend });
+      }
+    }
+    return result;
+  }, []);
 
   const getGroupExpenses = useCallback(
     (groupId: string) => expenses.filter((e) => e.groupId === groupId).sort((a, b) => b.expenseDate.localeCompare(a.expenseDate)),
@@ -721,7 +753,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       listMyGroups,
       listGroupMembers,
       listFriends,
-      addFriendByEmail,
+      addFriend,
+      matchContacts,
       getGroupExpenses,
       getExpense,
       getFriendExpenses,
@@ -769,7 +802,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     listMyGroups,
     listGroupMembers,
     listFriends,
-    addFriendByEmail,
+    addFriend,
+    matchContacts,
     getGroupExpenses,
     getExpense,
     getFriendExpenses,

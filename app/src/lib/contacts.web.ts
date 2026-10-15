@@ -1,4 +1,4 @@
-export type DeviceContact = { name: string; email: string };
+export type DeviceContact = { id: string; name: string; phones: string[]; emails: string[] };
 
 /**
  * expo-contacts has no web implementation at all (not just unavailable at
@@ -7,6 +7,6 @@ export type DeviceContact = { name: string; email: string };
  * contacts.native.ts automatically for web builds, keeping the native
  * module out of the web bundle entirely.
  */
-export async function pickContactsWithEmail(): Promise<DeviceContact[] | "unavailable"> {
+export async function loadDeviceContacts(): Promise<DeviceContact[] | "unavailable"> {
   return "unavailable";
 }

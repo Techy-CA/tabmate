@@ -8,6 +8,7 @@ Run these files in order. Each one is safe to re-run.
 2. `replica/migration_payment_handles.sql`
 3. `replica/migration_002_realtime_notifications.sql`. This one enables realtime, adds notifications and friend invites, and fixes RLS and security bugs.
 4. `replica/migration_003_payment_allocation.sql`. A settle-up recorded outside a group now settles the matching groups too, so friend and group balances always agree. It also fixes payments recorded before this change.
+5. `replica/migration_004_phone_friends.sql`. Adds friends by mobile number, lets you invite numbers that aren't on Tabmate yet, and matches your phone contacts.
 
 Then:
 
