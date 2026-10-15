@@ -72,6 +72,7 @@ export default function AddExpense() {
   );
   const [splitSheetOpen, setSplitSheetOpen] = useState(!!editing);
   const [error, setError] = useState<string | undefined>();
+  const [saving, setSaving] = useState(false);
 
   const shares = computeShares(splitType, amountCents, participantIds, inputs);
   const remainder = remainderLabel(splitType, amountCents, participantIds, inputs);
@@ -99,6 +100,17 @@ export default function AddExpense() {
       return;
     }
 
+    if (saving) return; // double-tap guard
+    setSaving(true);
+    try {
+      await save();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't save. Check your connection and try again.");
+      setSaving(false);
+    }
+  };
+
+  const save = async () => {
     if (editing) {
       await updateExpense(editing.id, {
         description: description.trim(),
@@ -255,7 +267,7 @@ export default function AddExpense() {
               </View>
             ) : (
               <Text className="font-sans text-sm text-muted">
-                Splits {formatCents(Math.floor(amountCents / Math.max(participants.length, 1)), "INR")} each.
+                Splits {formatCents(Math.floor(amountCents / Math.max(participants.length, 1)), group?.defaultCurrency ?? currentUser.defaultCurrency)} each.
               </Text>
             )}
 
@@ -270,7 +282,7 @@ export default function AddExpense() {
           <SegmentedControl options={REPEAT_OPTIONS} value={repeatInterval} onChange={setRepeatInterval} />
         </View>
 
-        <Button label={editing ? "Update the tab" : "Add to the tab"} size="lg" onPress={submit} />
+        <Button label={editing ? "Update the tab" : "Add to the tab"} size="lg" loading={saving} onPress={submit} />
       </ScrollView>
     </SafeAreaView>
   );

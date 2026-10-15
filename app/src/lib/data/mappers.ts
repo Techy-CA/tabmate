@@ -1,6 +1,17 @@
 // Snake-case DB rows (schema.sql) -> camelCase app types (types.ts). One
 // place for this so store.tsx's fetches and realtime handlers agree exactly.
-import type { ActivityItem, Expense, ExpenseComment, Group, GroupMember, Payment, User } from "./types";
+import {
+  DEFAULT_NOTIFICATION_PREFS,
+  type ActivityItem,
+  type AppNotification,
+  type Expense,
+  type ExpenseComment,
+  type Group,
+  type GroupMember,
+  type NotificationPrefs,
+  type Payment,
+  type User,
+} from "./types";
 
 export function mapUser(row: Record<string, unknown>): User {
   return {
@@ -13,6 +24,10 @@ export function mapUser(row: Record<string, unknown>): User {
     upiId: (row.upi_id as string | null) ?? undefined,
     paypalMeHandle: (row.paypal_me_handle as string | null) ?? undefined,
     venmoUsername: (row.venmo_username as string | null) ?? undefined,
+    notificationPrefs: {
+      ...DEFAULT_NOTIFICATION_PREFS,
+      ...((row.notification_prefs as Partial<NotificationPrefs> | null) ?? {}),
+    },
   };
 }
 
@@ -75,6 +90,7 @@ export function mapPayment(row: Record<string, unknown>): Payment {
     currencyCode: row.currency_code as string,
     status: row.status as Payment["status"],
     createdAt: row.created_at as string,
+    batchId: (row.batch_id as string | null) ?? undefined,
   };
 }
 
@@ -103,4 +119,18 @@ export function mapActivity(row: Record<string, unknown>): ActivityItem {
 export type FriendshipRow = { userIdA: string; userIdB: string };
 export function mapFriendship(row: Record<string, unknown>): FriendshipRow {
   return { userIdA: row.user_id_a as string, userIdB: row.user_id_b as string };
+}
+
+export function mapNotification(row: Record<string, unknown>): AppNotification {
+  return {
+    id: row.id as string,
+    userId: row.user_id as string,
+    actorUserId: (row.actor_user_id as string | null) ?? undefined,
+    type: row.type as string,
+    title: row.title as string,
+    body: (row.body as string | null) ?? "",
+    data: (row.data as AppNotification["data"] | null) ?? {},
+    readAt: (row.read_at as string | null) ?? undefined,
+    createdAt: row.created_at as string,
+  };
 }

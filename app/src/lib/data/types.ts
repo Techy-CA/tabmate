@@ -1,6 +1,5 @@
-// Mirrors replica/schema.sql. This is the fake, in-memory data layer for
-// replica-build — function signatures match the RPCs in architecture.md so
-// replica-backend can swap in real Supabase calls without touching screens.
+// Mirrors replica/schema.sql (+ migrations). Rows are mapped from snake_case
+// in mappers.ts; store.tsx loads them from Supabase.
 
 export type SplitType = "equal" | "exact" | "percentage" | "shares" | "adjustment" | "itemized";
 export type RepeatInterval = "none" | "weekly" | "fortnightly" | "monthly" | "yearly";
@@ -32,6 +31,40 @@ export type User = {
   upiId?: string;
   paypalMeHandle?: string;
   venmoUsername?: string;
+  notificationPrefs: NotificationPrefs;
+};
+
+// Keys match the first word of a notification type (expense_added ->
+// "expense"), plus "push" as the master switch for device push.
+export type NotificationPrefs = {
+  push: boolean;
+  expense: boolean;
+  payment: boolean;
+  comment: boolean;
+  group: boolean;
+  friend: boolean;
+};
+
+export const DEFAULT_NOTIFICATION_PREFS: NotificationPrefs = {
+  push: true,
+  expense: true,
+  payment: true,
+  comment: true,
+  group: true,
+  friend: true,
+};
+
+export type AppNotification = {
+  id: string;
+  userId: string;
+  actorUserId?: string;
+  type: string;
+  title: string;
+  body: string;
+  // data.url is an in-app route to open when the notification is tapped
+  data: { url?: string } & Record<string, unknown>;
+  readAt?: string;
+  createdAt: string;
 };
 
 export type Group = {
@@ -111,6 +144,10 @@ export type Payment = {
   currencyCode: string;
   status: PaymentStatus;
   createdAt: string;
+  // A payment recorded outside a group is split across the groups where the
+  // two people owe each other (migration 003); the pieces share a batchId,
+  // and the largest piece's id equals it.
+  batchId?: string;
 };
 
 export type ActivityItem = {

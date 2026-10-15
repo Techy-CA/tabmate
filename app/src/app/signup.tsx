@@ -1,4 +1,4 @@
-import { useRouter } from "expo-router";
+import { Redirect, useRouter } from "expo-router";
 import { useState } from "react";
 import { Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -10,7 +10,7 @@ import { useAuth } from "@/lib/auth";
 // S02 — Sign up
 export default function SignUp() {
   const router = useRouter();
-  const { signUp, signInWithGoogle } = useAuth();
+  const { signUp, signInWithGoogle, isAuthenticated } = useAuth();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -38,12 +38,14 @@ export default function SignUp() {
     router.replace("/(tabs)");
   };
 
+  if (isAuthenticated) return <Redirect href="/(tabs)" />;
+
   if (checkEmail) {
     return (
       <SafeAreaView className="flex-1 items-center justify-center gap-3 bg-bg p-6">
         <Text className="font-display text-xl text-text">Check your email</Text>
         <Text className="text-center font-sans text-sm text-muted">
-          We sent a confirmation link to {email}. Tap it, then come back and log in.
+          We sent a confirmation link to {email}. Open it on this phone and you&apos;ll be signed in.
         </Text>
         <Button label="Back to login" variant="secondary" onPress={() => router.replace("/login")} />
       </SafeAreaView>

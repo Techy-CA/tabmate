@@ -1,5 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -16,13 +17,15 @@ import { goBack } from "@/lib/nav";
 export default function PaymentDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { getPayment, getUser, getGroup, currentUser, cancelPayment } = useData();
+  const { getPayment, getUser, getGroup, getFriendPayments, currentUser, cancelPayment } = useData();
+  const [actionError, setActionError] = useState<string | undefined>();
 
   const payment = getPayment(id);
   if (!payment) {
     return (
       <SafeAreaView className="flex-1 items-center justify-center bg-bg">
         <Text className="font-sans text-sm text-muted">Payment not found.</Text>
+        <Button label="Go back" variant="ghost" onPress={() => goBack(router, "/")} />
       </SafeAreaView>
     );
   }
@@ -32,14 +35,30 @@ export default function PaymentDetail() {
   const counterpart = getUser(counterpartId);
   const group = payment.groupId ? getGroup(payment.groupId) : undefined;
   const cancelled = payment.status === "cancelled";
+  // One settle-up split across groups is several rows sharing a batchId;
+  // show and cancel it as the single payment the user recorded.
+  const pieces = payment.batchId
+    ? getFriendPayments(counterpartId).filter((p) => p.batchId === payment.batchId)
+    : [payment];
+  const totalCents = pieces.reduce((sum, p) => sum + p.amountCents, 0);
 
   const confirmCancel = () => {
     confirmAction({
       title: "Cancel this payment?",
-      message: "It'll stop counting toward your balance. This can't be undone from here.",
+      message:
+        pieces.length > 1
+          ? "The whole payment stops counting, in every group it was applied to. This can't be undone from here."
+          : "It'll stop counting toward your balance. This can't be undone from here.",
       confirmLabel: "Cancel payment",
       destructive: true,
-      onConfirm: () => cancelPayment(payment.id),
+      onConfirm: async () => {
+        setActionError(undefined);
+        try {
+          await cancelPayment(payment.id);
+        } catch (e) {
+          setActionError(e instanceof Error ? e.message : "Couldn't cancel the payment.");
+        }
+      },
     });
   };
 
@@ -58,6 +77,7 @@ export default function PaymentDetail() {
       </View>
 
       <View className="gap-6 p-6">
+        {actionError ? <Text className="font-sans text-sm text-danger">{actionError}</Text> : null}
         {cancelled ? (
           <View className="rounded-lg bg-danger/10 p-3">
             <Text className="font-sans-medium text-sm text-danger">
@@ -69,7 +89,7 @@ export default function PaymentDetail() {
         <View className="items-center gap-2">
           {counterpart ? <Avatar id={counterpart.id} name={counterpart.name} size="lg" /> : null}
           <Text className={`font-display text-display ${cancelled ? "text-muted" : "text-text"}`}>
-            {formatCents(payment.amountCents, payment.currencyCode)}
+            {formatCents(totalCents, payment.currencyCode)}
           </Text>
           <Text className="font-sans text-sm text-muted">
             {iPaid ? `You paid ${counterpart?.name ?? "someone"}` : `${counterpart?.name ?? "Someone"} paid you`}
@@ -81,7 +101,17 @@ export default function PaymentDetail() {
             <Text className="font-sans text-sm text-muted">Date</Text>
             <Text className="font-sans-medium text-sm text-text">{payment.createdAt.slice(0, 10)}</Text>
           </View>
-          {group ? (
+          {pieces.length > 1 ? (
+            <View className="gap-1 border-t border-border pt-2">
+              <Text className="font-sans text-sm text-muted">Applied to</Text>
+              {pieces.map((p) => (
+                <View key={p.id} className="flex-row items-center justify-between">
+                  <Text className="font-sans text-sm text-text">{p.groupId ? getGroup(p.groupId)?.name ?? "A group" : "Non-group"}</Text>
+                  <Text className="font-sans-medium text-sm text-text">{formatCents(p.amountCents, p.currencyCode)}</Text>
+                </View>
+              ))}
+            </View>
+          ) : group ? (
             <View className="flex-row items-center justify-between">
               <Text className="font-sans text-sm text-muted">Group</Text>
               <Text className="font-sans-medium text-sm text-text">{group.name}</Text>

@@ -18,12 +18,26 @@ export default function ExpenseDetail() {
   const router = useRouter();
   const { getExpense, getUser, currentUser, listComments, addComment, softDeleteExpense, restoreExpense } = useData();
   const [comment, setComment] = useState("");
+  const [sending, setSending] = useState(false);
+  const [actionError, setActionError] = useState<string | undefined>();
+
+  const run = async (action: () => Promise<unknown>) => {
+    setActionError(undefined);
+    try {
+      await action();
+      return true;
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : "Something went wrong. Try again.");
+      return false;
+    }
+  };
 
   const expense = getExpense(id);
   if (!expense) {
     return (
       <SafeAreaView className="flex-1 items-center justify-center bg-bg">
         <Text className="font-sans text-sm text-muted">Expense not found.</Text>
+        <Button label="Go back" variant="ghost" onPress={() => goBack(router, "/")} />
       </SafeAreaView>
     );
   }
@@ -37,7 +51,7 @@ export default function ExpenseDetail() {
       message: "You can bring it back anytime from this screen.",
       confirmLabel: "Delete",
       destructive: true,
-      onConfirm: () => softDeleteExpense(expense.id),
+      onConfirm: () => run(() => softDeleteExpense(expense.id)),
     });
   };
 
@@ -71,14 +85,15 @@ export default function ExpenseDetail() {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={expense.deletedAt ? "Restore expense" : "Delete expense"}
-            onPress={() => (expense.deletedAt ? restoreExpense(expense.id) : confirmDelete())}
+            onPress={() => (expense.deletedAt ? run(() => restoreExpense(expense.id)) : confirmDelete())}
           >
             <Feather name={expense.deletedAt ? "rotate-ccw" : "trash-2"} size={20} color="#1f2430" />
           </Pressable>
         </View>
       </View>
 
-      <ScrollView contentContainerClassName="gap-6 p-6 pb-10">
+      <ScrollView contentContainerClassName="gap-6 p-6 pb-10" keyboardShouldPersistTaps="handled">
+        {actionError ? <Text className="font-sans text-sm text-danger">{actionError}</Text> : null}
         {expense.deletedAt ? (
           <View className="rounded-lg bg-danger/10 p-3">
             <Text className="font-sans-medium text-sm text-danger">
@@ -95,18 +110,34 @@ export default function ExpenseDetail() {
         </View>
 
         <View className="gap-2 rounded-lg border border-border p-4">
-          <Text className="font-sans-semibold text-sm text-text">Split {expense.splitType}</Text>
+          <Text className="font-sans-semibold text-sm text-text">
+            {
+              {
+                equal: "Split equally",
+                exact: "Split by exact amounts",
+                percentage: "Split by percentage",
+                shares: "Split by shares",
+                adjustment: "Split with adjustments",
+                itemized: "Split by item",
+              }[expense.splitType]
+            }
+          </Text>
           {expense.shares.map((s) => {
             const user = getUser(s.userId);
+            const isMe = s.userId === currentUser.id;
+            const amt = (c: number) => formatCents(c, expense.currencyCode);
+            // Splitwise-style sentence per person: what they put in vs their share.
+            const line =
+              s.paidCents > 0
+                ? `paid ${amt(s.paidCents)} and ${isMe ? "owe" : "owes"} ${amt(s.owedCents)}`
+                : `${isMe ? "owe" : "owes"} ${amt(s.owedCents)}`;
             return (
               <View key={s.userId} className="flex-row items-center justify-between py-1.5">
                 <View className="flex-row items-center gap-2">
                   <Avatar id={s.userId} name={user?.name ?? "?"} size="xs" />
                   <Text className="font-sans text-sm text-text">{s.userId === currentUser.id ? "You" : user?.name}</Text>
                 </View>
-                <Text className="font-sans text-sm text-muted">
-                  paid {formatCents(s.paidCents, expense.currencyCode)} · owes {formatCents(s.owedCents, expense.currencyCode)}
-                </Text>
+                <Text className="font-sans text-sm text-muted">{line}</Text>
               </View>
             );
           })}
@@ -137,9 +168,13 @@ export default function ExpenseDetail() {
               label="Send"
               size="md"
               disabled={!comment.trim()}
-              onPress={() => {
-                addComment(expense.id, comment.trim());
-                setComment("");
+              loading={sending}
+              onPress={async () => {
+                if (sending) return;
+                setSending(true);
+                // keep the text if posting fails, so nothing is lost
+                if (await run(() => addComment(expense.id, comment.trim()))) setComment("");
+                setSending(false);
               }}
             />
           </View>

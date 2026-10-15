@@ -7,25 +7,26 @@ import { Avatar } from "@/components/Avatar";
 import { BalanceStack } from "@/components/Balance";
 import { Button } from "@/components/Button";
 import { EmptyState } from "@/components/EmptyState";
+import { LedgerRow } from "@/components/LedgerRow";
 import { formatCents } from "@/lib/data/balances";
 import { useData } from "@/lib/data/store";
+import { firstName, groupExpenseRow, newestFirst, paymentRow } from "@/lib/ledger";
 import { goBack } from "@/lib/nav";
-
-const CATEGORY_ICON: Record<string, React.ComponentProps<typeof Feather>["name"]> = {
-  rent: "home",
-  groceries: "shopping-cart",
-  utilities: "zap",
-  travel: "map-pin",
-  food: "coffee",
-  general: "file-text",
-};
 
 // S05 — Group detail
 export default function GroupDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { getGroup, listGroupMembers, getGroupExpenses, getGroupBalances, getSimplifiedTransfers, getUser, currentUser } =
-    useData();
+  const {
+    getGroup,
+    listGroupMembers,
+    getGroupExpenses,
+    getGroupPayments,
+    getGroupBalances,
+    getGroupTransfers,
+    getUser,
+    currentUser,
+  } = useData();
 
   const group = getGroup(id);
   if (!group) {
@@ -37,10 +38,25 @@ export default function GroupDetail() {
   }
 
   const members = listGroupMembers(group.id);
-  const expenses = getGroupExpenses(group.id).filter((e) => !e.deletedAt);
+  // Every amount on the right is what the line means for you ("₹425 · you
+  // lent"), and payments are listed too, so the balance above can be traced:
+  // lent ₹425, received ₹300 -> owed ₹125.
+  const expenseRows = newestFirst(
+    getGroupExpenses(group.id)
+      .filter((e) => !e.deletedAt)
+      .map((e) => ({ ...groupExpenseRow(e, currentUser.id, getUser), id: e.id }))
+  );
+  const paymentRows = newestFirst(getGroupPayments(group.id).map((p) => ({ ...paymentRow(p, currentUser.id, getUser), id: p.id })));
   const balances = getGroupBalances(group.id);
-  const transfers = group.simplifyDebts ? getSimplifiedTransfers(group.id) : [];
+  const transfers = getGroupTransfers(group.id);
   const mine = balances.find((b) => b.userId === currentUser.id);
+  // The transfers this user is part of — what Settle up offers, one person
+  // at a time and for exactly what's owed between the two of them.
+  const myTransfers = transfers.filter((t) => t.from === currentUser.id || t.to === currentUser.id);
+  const settle = (t: (typeof transfers)[number]) => {
+    const counterpartId = t.from === currentUser.id ? t.to : t.from;
+    router.push(`/settle/${counterpartId}?groupId=${group.id}&amount=${t.amountCents}`);
+  };
 
   return (
     <SafeAreaView className="flex-1 bg-bg">
@@ -87,17 +103,38 @@ export default function GroupDetail() {
 
           {transfers.length > 0 ? (
             <View className="gap-1.5 border-t border-border pt-3">
-              <Text className="font-sans-medium text-xs text-muted">Simplified: fewest payments to settle up</Text>
-              {transfers.map((t, i) => (
-                <View key={i} className="flex-row items-center gap-2">
-                  <Text className="font-sans text-sm text-text">{getUser(t.from)?.name}</Text>
-                  <Feather name="arrow-right" size={14} color="#6b7280" />
-                  <Text className="font-sans text-sm text-text">{getUser(t.to)?.name}</Text>
-                  <Text className="font-sans-medium text-sm text-text">
-                    {formatCents(t.amountCents, t.currencyCode)}
-                  </Text>
-                </View>
-              ))}
+              <Text className="font-sans-medium text-xs text-muted">
+                {group.simplifyDebts ? "To settle up (simplified to the fewest payments)" : "To settle up"}
+              </Text>
+              {transfers.map((t) => {
+                const involvesMe = t.from === currentUser.id || t.to === currentUser.id;
+                return (
+                  <View key={`${t.from}>${t.to}`} className="flex-row items-center gap-2">
+                    <Text
+                      className={`flex-1 font-sans text-sm ${
+                        t.to === currentUser.id ? "text-success" : t.from === currentUser.id ? "text-danger" : "text-text"
+                      }`}
+                    >
+                      {t.to === currentUser.id
+                        ? `${firstName(getUser(t.from))} owes you `
+                        : t.from === currentUser.id
+                          ? `You owe ${firstName(getUser(t.to))} `
+                          : `${firstName(getUser(t.from))} owes ${firstName(getUser(t.to))} `}
+                      <Text className="font-sans-semibold">{formatCents(t.amountCents, t.currencyCode)}</Text>
+                    </Text>
+                    {involvesMe ? (
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={`Settle ${formatCents(t.amountCents, t.currencyCode)}`}
+                        onPress={() => settle(t)}
+                        className="rounded-pill border border-accent px-3 py-1"
+                      >
+                        <Text className="font-sans-semibold text-xs text-accent">Settle</Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
+                );
+              })}
             </View>
           ) : null}
 
@@ -107,65 +144,33 @@ export default function GroupDetail() {
             ))}
           </View>
 
-          {mine && mine.balanceCents !== 0 ? (
-            <Button
-              label="Settle up"
-              onPress={() => {
-                // Same action either direction — "pay someone" when you owe,
-                // "record that someone paid you" when the group owes you.
-                // The Settle Up screen itself frames which one it is.
-                const counterpartId =
-                  mine.balanceCents < 0
-                    ? transfers.find((t) => t.from === currentUser.id)?.to ??
-                      balances.find((b) => b.balanceCents > 0)?.userId
-                    : transfers.find((t) => t.to === currentUser.id)?.from ??
-                      balances.find((b) => b.balanceCents < 0)?.userId;
-                if (counterpartId) router.push(`/settle/${counterpartId}?groupId=${group.id}`);
-              }}
-            />
+          {myTransfers.length > 0 ? (
+            // Same action either direction — "pay someone" when you owe,
+            // "record that someone paid you" when they owe you. With several
+            // people involved, the Settle chips above pick a specific one.
+            <Button label="Settle up" onPress={() => settle(myTransfers[0])} />
           ) : null}
         </View>
 
-        <View className="gap-2">
-          <Text className="font-sans-semibold text-sm text-text">Expenses</Text>
-          {expenses.length === 0 ? (
+        <View>
+          <Text className="pb-1 font-sans-semibold text-sm text-text">Expenses</Text>
+          {expenseRows.length === 0 ? (
             <EmptyState icon="inbox" title="No expenses yet" body="Add the first shared cost for this group." />
           ) : (
-            expenses.map((e) => {
-              const mineShare = e.shares.find((s) => s.userId === currentUser.id);
-              const payer = e.shares.find((s) => s.paidCents > 0);
-              return (
-                <Pressable
-                  key={e.id}
-                  onPress={() => router.push(`/expense/${e.id}`)}
-                  accessibilityRole="button"
-                  accessibilityLabel={`${e.description}, ${formatCents(e.amountCents, e.currencyCode)}, paid by ${
-                    getUser(payer?.userId ?? "")?.name ?? "someone"
-                  }`}
-                  className="flex-row items-center gap-3 border-b border-border py-3"
-                >
-                  <View className="h-10 w-10 items-center justify-center rounded-sm bg-surface">
-                    <Feather name={CATEGORY_ICON[e.category] ?? "file-text"} size={18} color="#6b7280" />
-                  </View>
-                  <View className="flex-1">
-                    <Text className="font-sans-medium text-sm text-text">{e.description}</Text>
-                    <Text className="font-sans text-xs text-muted">
-                      {getUser(payer?.userId ?? "")?.name ?? "Someone"} paid · {e.expenseDate}
-                      {e.repeatInterval !== "none" ? " · repeats" : ""}
-                    </Text>
-                  </View>
-                  <Text
-                    className={`font-sans-semibold text-sm ${
-                      (mineShare?.paidCents ?? 0) - (mineShare?.owedCents ?? 0) >= 0 ? "text-success" : "text-danger"
-                    }`}
-                  >
-                    {formatCents(e.amountCents, e.currencyCode)}
-                  </Text>
-                </Pressable>
-              );
-            })
+            expenseRows.map(({ key, id: expenseId, sortKey: _sortKey, ...row }) => (
+              <LedgerRow key={key} {...row} onPress={() => router.push(`/expense/${expenseId}`)} />
+            ))
           )}
         </View>
+
+        {paymentRows.length > 0 ? (
+          <View>
+            <Text className="pb-1 font-sans-semibold text-sm text-text">Payments</Text>
+            {paymentRows.map(({ key, id: paymentId, sortKey: _sortKey, ...row }) => (
+              <LedgerRow key={key} {...row} onPress={() => router.push(`/payment/${paymentId}`)} />
+            ))}
+          </View>
+        ) : null}
       </ScrollView>
 
       <Pressable

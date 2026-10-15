@@ -7,6 +7,7 @@ import { Avatar } from "@/components/Avatar";
 import { formatCents } from "@/lib/data/balances";
 import { useData } from "@/lib/data/store";
 import { useAuth } from "@/lib/auth";
+import { unregisterPush } from "@/lib/push";
 
 function Row({ icon, label, onPress }: { icon: React.ComponentProps<typeof Feather>["name"]; label: string; onPress?: () => void }) {
   return (
@@ -48,7 +49,7 @@ export default function Account() {
         <View className="items-center rounded-lg border border-border bg-surface p-4">
           <Text className="font-sans text-xs text-muted">Overall balance</Text>
           <Text className={`font-display text-lg ${total >= 0 ? "text-success" : "text-danger"}`}>
-            {formatCents(total, "INR")}
+            {formatCents(total, currentUser.defaultCurrency)}
           </Text>
         </View>
 
@@ -66,8 +67,10 @@ export default function Account() {
         </View>
 
         <Pressable
-          onPress={() => {
-            signOut();
+          onPress={async () => {
+            // Unregister while the session is still valid (RLS needs it).
+            await unregisterPush();
+            await signOut();
             router.replace("/welcome");
           }}
           accessibilityRole="button"

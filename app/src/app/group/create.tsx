@@ -18,6 +18,7 @@ export default function CreateGroup() {
   const [name, setName] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | undefined>();
+  const [saving, setSaving] = useState(false);
 
   const toggle = (id: string) => {
     setSelected((prev) => {
@@ -33,8 +34,15 @@ export default function CreateGroup() {
       setError("Give your group a name.");
       return;
     }
-    const group = await createGroup(name.trim(), [...selected]);
-    router.replace(`/group/${group.id}`);
+    if (saving) return;
+    setSaving(true);
+    try {
+      const group = await createGroup(name.trim(), [...selected]);
+      router.replace(`/group/${group.id}`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't create the group. Check your connection and try again.");
+      setSaving(false);
+    }
   };
 
   return (
@@ -80,7 +88,7 @@ export default function CreateGroup() {
           )}
         </View>
 
-        <Button label="Create group" size="lg" onPress={submit} />
+        <Button label="Create group" size="lg" loading={saving} onPress={submit} />
       </ScrollView>
     </SafeAreaView>
   );

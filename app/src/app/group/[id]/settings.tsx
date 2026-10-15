@@ -22,11 +22,21 @@ export default function GroupSettings() {
   const group = getGroup(id);
   const [name, setName] = useState(group?.name ?? "");
   const [inviteCode, setInviteCode] = useState<string | undefined>();
+  const [error, setError] = useState<string | undefined>();
 
   if (!group) return null;
   const members = listGroupMembers(group.id);
 
-  const invite = async () => {
+  const run = async (action: () => Promise<unknown>) => {
+    setError(undefined);
+    try {
+      await action();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Something went wrong. Try again.");
+    }
+  };
+
+  const invite = () => run(async () => {
     const code = await createGroupInvite(group.id);
     // Always show the code in-app — some platforms (web) have no Share
     // implementation at all, and even where Share works, showing the code
@@ -34,11 +44,19 @@ export default function GroupSettings() {
     // chat, not just via whatever the OS share sheet offers.
     setInviteCode(code);
     try {
-      await Share.share({ message: `Join "${group.name}" on Tabmate. Invite code: ${code}` });
+      await Share.share({
+        message: [
+          `Join "${group.name}" on Tabmate to split expenses together.`,
+          process.env.EXPO_PUBLIC_APP_DOWNLOAD_URL ? `Get the app: ${process.env.EXPO_PUBLIC_APP_DOWNLOAD_URL}` : null,
+          `Then tap "Join a group" and enter code: ${code}`,
+        ]
+          .filter(Boolean)
+          .join("\n\n"),
+      });
     } catch {
       // Share is unavailable (e.g. the web preview) — the on-screen code above is the fallback.
     }
-  };
+  });
 
   const confirmLeave = () => {
     confirmAction({
@@ -47,8 +65,10 @@ export default function GroupSettings() {
       confirmLabel: "Leave",
       destructive: true,
       onConfirm: async () => {
-        await leaveGroup(group.id);
-        router.replace("/(tabs)");
+        await run(async () => {
+          await leaveGroup(group.id);
+          router.replace("/(tabs)");
+        });
       },
     });
   };
@@ -67,7 +87,9 @@ export default function GroupSettings() {
           label="Group name"
           value={name}
           onChangeText={setName}
-          onBlur={() => name.trim() && name !== group.name && updateGroup(group.id, { name: name.trim() })}
+          onBlur={() => {
+            if (name.trim() && name !== group.name) run(() => updateGroup(group.id, { name: name.trim() }));
+          }}
         />
 
         <View className="gap-1">
@@ -82,7 +104,15 @@ export default function GroupSettings() {
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel={`Remove ${m.name}`}
-                  onPress={() => removeMember(group.id, m.id)}
+                  onPress={() =>
+                    confirmAction({
+                      title: `Remove ${m.name}?`,
+                      message: `They'll stop seeing expenses in ${group.name}. Their past expenses stay.`,
+                      confirmLabel: "Remove",
+                      destructive: true,
+                      onConfirm: () => run(() => removeMember(group.id, m.id)),
+                    })
+                  }
                 >
                   <Feather name="x" size={18} color="#6b7280" />
                 </Pressable>
@@ -104,9 +134,11 @@ export default function GroupSettings() {
             label="Simplify Debts"
             description="Minimize the number of payments needed to settle up. Never changes anyone's total balance."
             value={group.simplifyDebts}
-            onChange={(v) => updateGroup(group.id, { simplifyDebts: v })}
+            onChange={(v) => run(() => updateGroup(group.id, { simplifyDebts: v }))}
           />
         </View>
+
+        {error ? <Text className="font-sans text-sm text-danger">{error}</Text> : null}
 
         <Button label="Leave group" variant="danger" onPress={confirmLeave} />
       </ScrollView>

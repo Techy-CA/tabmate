@@ -1,9 +1,20 @@
 # Build log
 
-Stack: Expo + Expo Router + NativeWind, fake in-memory data layer in
-`app/src/lib/data/` (same function signatures as the Supabase RPCs in
-architecture.md, so replica-backend can swap the implementation without
-touching screens).
+Stack: Expo + Expo Router + NativeWind, backed by Supabase (Postgres + RLS +
+realtime). The data layer in `app/src/lib/data/store.tsx` talks to Supabase
+directly; the original fake in-memory layer is gone. Setup and APK build
+steps: `app/SETUP.md`.
+
+**2026-10-15, pass 3**: realtime fixed (tables were never added to the
+`supabase_realtime` publication, so no events ever arrived), notifications
+(in-app + Expo push via `pg_net`), friend invites by email for people not on
+Tabmate yet, native Google sign-in + password reset, and security/RLS fixes,
+all in `replica/migration_002_realtime_notifications.sql`. Verified by
+applying schema + migrations to a local Postgres 17 with Supabase stubs and
+running 13 scenario checks (all pass). Also fixed the missing
+`react-native-worklets` peer dependency, which would have crashed the APK.
+The Playwright e2e suite was written against the fake layer and has not been
+re-run against Supabase.
 
 **2026-10-14, pass 2 (`/replica-test`, three sessions)**: click-tested
 nearly every flow by hand against the running web preview, found and fixed

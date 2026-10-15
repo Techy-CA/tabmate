@@ -3,7 +3,7 @@ import { Text, View } from "react-native";
 type State = "owed-to-you" | "you-owe" | "settled";
 
 const config: Record<State, { text: string; defaultLabel: string }> = {
-  "owed-to-you": { text: "text-success", defaultLabel: "you get back" },
+  "owed-to-you": { text: "text-success", defaultLabel: "you are owed" },
   "you-owe": { text: "text-danger", defaultLabel: "you owe" },
   settled: { text: "text-muted", defaultLabel: "settled up" },
 };
@@ -12,11 +12,13 @@ export type BalanceChipProps = {
   state: State;
   /** Formatted amount, e.g. "₹1,240" — omit for the settled state. */
   amount?: string;
+  /** Overrides the caption, e.g. "owes you" on a friend row. */
+  label?: string;
 };
 
 /**
  * Colour is never the only signal — the label always says "you owe" /
- * "you get back" / "settled up" in text, since this is a money app and
+ * "you are owed" / "settled up" in text, since this is a money app and
  * colour-blind users need the same information everyone else gets.
  */
 
@@ -26,7 +28,7 @@ export type BalanceChipProps = {
  * (₹2,000 vs ₹23,533.33) reads as randomly sized — right-aligned text keeps
  * every row's right edge lined up instead.
  */
-export function BalanceStack({ state, amount }: BalanceChipProps) {
+export function BalanceStack({ state, amount, label }: BalanceChipProps) {
   const c = config[state];
   if (state === "settled" || !amount) {
     return <Text className="font-sans-medium text-sm text-muted">{c.defaultLabel}</Text>;
@@ -34,7 +36,7 @@ export function BalanceStack({ state, amount }: BalanceChipProps) {
   return (
     <View className="items-end">
       <Text className={`font-sans-semibold text-base ${c.text}`}>{amount}</Text>
-      <Text className={`font-sans text-xs ${c.text}`}>{c.defaultLabel}</Text>
+      <Text className={`font-sans text-xs ${c.text}`}>{label ?? c.defaultLabel}</Text>
     </View>
   );
 }
@@ -46,7 +48,7 @@ export function BalanceStack({ state, amount }: BalanceChipProps) {
  * No pill: a colored chip nested inside its own surrounding card read as
  * two boxes stacked on each other rather than one clear number.
  */
-export function BalanceHero({ state, amount }: BalanceChipProps) {
+export function BalanceHero({ state, amount, label }: BalanceChipProps) {
   const c = config[state];
   if (state === "settled" || !amount) {
     return <Text className="font-sans-medium text-base text-muted">{c.defaultLabel}</Text>;
@@ -54,7 +56,7 @@ export function BalanceHero({ state, amount }: BalanceChipProps) {
   return (
     <View className="items-center gap-1">
       <Text className={`font-display text-display ${c.text}`}>{amount}</Text>
-      <Text className="font-sans text-sm text-muted">{c.defaultLabel}</Text>
+      <Text className="font-sans text-sm text-muted">{label ?? c.defaultLabel}</Text>
     </View>
   );
 }

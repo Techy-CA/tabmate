@@ -7,22 +7,45 @@ import { Avatar } from "@/components/Avatar";
 import { BalanceHero } from "@/components/Balance";
 import { Button } from "@/components/Button";
 import { EmptyState } from "@/components/EmptyState";
+import { LedgerRow } from "@/components/LedgerRow";
 import { formatCents } from "@/lib/data/balances";
 import { useData } from "@/lib/data/store";
+import { friendExpenseRow, newestFirst, paymentRow } from "@/lib/ledger";
 import { goBack } from "@/lib/nav";
 
-// S10 — Friend detail
+// S10 — Friend detail. The whole page is about this one friend, so nothing
+// below the header repeats their name: "owes you" / "you owe" is enough.
+// Every amount is what's between the two of you — an ₹850 lunch split two
+// ways shows ₹425 — and the breakdown card matches each group's own screen.
 export default function FriendDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { getUser, getFriendExpenses, getFriendPayments, getFriendBalance, currentUser, getGroup } = useData();
+  const { getUser, getFriendExpenses, getFriendPayments, getFriendBalance, getFriendBalanceByContext, currentUser, getGroup } =
+    useData();
 
   const friend = getUser(id);
   if (!friend) return null;
 
-  const expenses = getFriendExpenses(friend.id).filter((e) => !e.deletedAt);
-  const paymentsList = getFriendPayments(friend.id);
+  const me = currentUser.id;
+  const currency = currentUser.defaultCurrency;
   const balance = getFriendBalance(friend.id);
+
+  const byContext = [...getFriendBalanceByContext(friend.id).entries()]
+    .map(([ctx, cents]) => ({ ctx, label: ctx ? getGroup(ctx)?.name ?? "Group" : "Non-group", cents }))
+    // groups first (largest first), non-group last
+    .sort((a, b) => (a.ctx === "" ? 1 : b.ctx === "" ? -1 : Math.abs(b.cents) - Math.abs(a.cents)));
+
+  const expenseRows = newestFirst(
+    getFriendExpenses(friend.id)
+      .filter((e) => !e.deletedAt)
+      .map((e) => ({ ...friendExpenseRow(e, me, friend.id, e.groupId ? getGroup(e.groupId)?.name : undefined), id: e.id }))
+  );
+  const paymentRows = newestFirst(
+    getFriendPayments(friend.id).map((p) => ({
+      ...paymentRow(p, me, getUser, { friendView: true, contextName: p.groupId ? getGroup(p.groupId)?.name : undefined }),
+      id: p.id,
+    }))
+  );
 
   return (
     <SafeAreaView className="flex-1 bg-bg">
@@ -34,15 +57,16 @@ export default function FriendDetail() {
       </View>
 
       <ScrollView contentContainerClassName="gap-6 p-6 pb-10">
-        {/* Profile-style header: identity first, balance as a stat under the
-            name, action as a clear standalone CTA — not a number-plus-button
-            crammed into one small bordered box. */}
         <View className="items-center gap-4 pt-2">
           <Avatar id={friend.id} name={friend.name} size="xl" />
           <View className="items-center gap-1">
             <Text className="font-display text-lg text-text">{friend.name}</Text>
             {balance !== 0 ? (
-              <BalanceHero state={balance > 0 ? "owed-to-you" : "you-owe"} amount={formatCents(Math.abs(balance), "INR")} />
+              <BalanceHero
+                state={balance > 0 ? "owed-to-you" : "you-owe"}
+                amount={formatCents(Math.abs(balance), currency)}
+                label={balance > 0 ? "owes you" : "you owe"}
+              />
             ) : (
               <BalanceHero state="settled" />
             )}
@@ -50,75 +74,46 @@ export default function FriendDetail() {
           {balance !== 0 ? <Button label="Settle up" size="lg" onPress={() => router.push(`/settle/${friend.id}`)} /> : null}
         </View>
 
-        <View className="gap-2">
-          <Text className="font-sans-semibold text-sm text-text">Shared expenses</Text>
-          {expenses.length === 0 ? (
+        {/* Where the total comes from — only when there's more than one
+            place, or it's all from a group (then the group name explains it). */}
+        {byContext.length > 1 || (byContext.length === 1 && byContext[0].ctx !== "") ? (
+          <View className="gap-2 rounded-lg border border-border bg-surface p-4">
+            {byContext.map((c) => (
+              <Pressable
+                key={c.ctx || "non-group"}
+                disabled={!c.ctx}
+                onPress={() => router.push(`/group/${c.ctx}`)}
+                accessibilityRole={c.ctx ? "button" : undefined}
+                className="flex-row items-center justify-between"
+              >
+                <Text className="font-sans text-sm text-text">{c.label}</Text>
+                <Text className={`font-sans-medium text-sm ${c.cents > 0 ? "text-success" : "text-danger"}`}>
+                  {c.cents > 0 ? "owes you" : "you owe"} {formatCents(Math.abs(c.cents), currency)}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        ) : null}
+
+        <View>
+          <Text className="pb-1 font-sans-semibold text-sm text-text">Shared expenses</Text>
+          {expenseRows.length === 0 ? (
             <EmptyState icon="inbox" title="Nothing shared yet" body="Split an expense together and it'll show up here." />
           ) : (
-            expenses.map((e) => {
-              const mine = e.shares.find((s) => s.userId === currentUser.id);
-              const group = e.groupId ? getGroup(e.groupId) : undefined;
-              return (
-                <Pressable
-                  key={e.id}
-                  onPress={() => router.push(`/expense/${e.id}`)}
-                  accessibilityRole="button"
-                  className="flex-row items-center justify-between border-b border-border py-3"
-                >
-                  <View className="flex-1">
-                    <Text className="font-sans-medium text-sm text-text">{e.description}</Text>
-                    <Text className="font-sans text-xs text-muted">
-                      {group ? `${group.name} · ` : ""}
-                      {e.expenseDate}
-                    </Text>
-                  </View>
-                  <Text
-                    className={`font-sans-semibold text-sm ${
-                      (mine?.paidCents ?? 0) - (mine?.owedCents ?? 0) >= 0 ? "text-success" : "text-danger"
-                    }`}
-                  >
-                    {formatCents(e.amountCents, e.currencyCode)}
-                  </Text>
-                </Pressable>
-              );
-            })
+            expenseRows.map(({ key, id: expenseId, sortKey: _sortKey, ...row }) => (
+              <LedgerRow key={key} {...row} onPress={() => router.push(`/expense/${expenseId}`)} />
+            ))
           )}
         </View>
 
-        <View className="gap-2">
-          <Text className="font-sans-semibold text-sm text-text">Payments</Text>
-          {paymentsList.length === 0 ? (
-            <EmptyState icon="check-circle" title="No payments yet" body="Settle up and it'll show up here." />
-          ) : (
-            paymentsList.map((p) => {
-              const iPaid = p.fromUserId === currentUser.id;
-              const group = p.groupId ? getGroup(p.groupId) : undefined;
-              const cancelled = p.status === "cancelled";
-              return (
-                <Pressable
-                  key={p.id}
-                  onPress={() => router.push(`/payment/${p.id}`)}
-                  accessibilityRole="button"
-                  className="flex-row items-center justify-between border-b border-border py-3"
-                >
-                  <View className="flex-1">
-                    <Text className={`font-sans-medium text-sm ${cancelled ? "text-muted line-through" : "text-text"}`}>
-                      {iPaid ? `You paid ${friend.name}` : `${friend.name} paid you`}
-                    </Text>
-                    <Text className="font-sans text-xs text-muted">
-                      {group ? `${group.name} · ` : ""}
-                      {p.createdAt.slice(0, 10)}
-                      {cancelled ? " · cancelled" : ""}
-                    </Text>
-                  </View>
-                  <Text className={`font-sans-semibold text-sm ${cancelled ? "text-muted" : iPaid ? "text-danger" : "text-success"}`}>
-                    {formatCents(p.amountCents, p.currencyCode)}
-                  </Text>
-                </Pressable>
-              );
-            })
-          )}
-        </View>
+        {paymentRows.length > 0 ? (
+          <View>
+            <Text className="pb-1 font-sans-semibold text-sm text-text">Payments</Text>
+            {paymentRows.map(({ key, id: paymentId, sortKey: _sortKey, ...row }) => (
+              <LedgerRow key={key} {...row} onPress={() => router.push(`/payment/${paymentId}`)} />
+            ))}
+          </View>
+        ) : null}
       </ScrollView>
     </SafeAreaView>
   );

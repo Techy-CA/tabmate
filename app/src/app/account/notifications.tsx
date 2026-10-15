@@ -1,31 +1,45 @@
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import { Pressable, ScrollView, Text, View } from "react-native";
+import { Linking, Platform, Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Toggle } from "@/components/Toggle";
+import { useData } from "@/lib/data/store";
+import type { NotificationPrefs } from "@/lib/data/types";
 import { goBack } from "@/lib/nav";
+import { registerForPush } from "@/lib/push";
 
-// Per-event-type preference, same event set as activity_items in
-// schema.sql. Preferences live only in this screen's state for now — there's
-// no account to sync them to until replica-backend wires up Supabase, and no
-// device push token to actually act on them until a real build exists (push
-// can't be delivered to, or tested in, a web preview).
-const EVENTS: { key: string; label: string; description: string }[] = [
-  { key: "expense", label: "New expenses", description: "Someone adds or edits a shared expense" },
+// Saved to users.notification_prefs — the server checks it before creating
+// a notification (per category) and before sending a push ("push").
+const EVENTS: { key: Exclude<keyof NotificationPrefs, "push">; label: string; description: string }[] = [
+  { key: "friend", label: "Friends", description: "Someone adds you, or a friend you invited joins" },
+  { key: "expense", label: "Expenses", description: "Someone adds, edits or deletes an expense with you" },
   { key: "payment", label: "Payments", description: "Someone settles up with you" },
   { key: "comment", label: "Comments", description: "Someone comments on a shared expense" },
-  { key: "group", label: "Group activity", description: "Members join, leave, or a group is renamed" },
+  { key: "group", label: "Groups", description: "You're added to a group, or someone joins one of yours" },
 ];
 
 export default function NotificationSettings() {
   const router = useRouter();
-  const [push, setPush] = useState(true);
-  const [email, setEmail] = useState(true);
-  const [perEvent, setPerEvent] = useState<Record<string, boolean>>(
-    () => Object.fromEntries(EVENTS.map((e) => [e.key, true]))
-  );
+  const { currentUser, updateNotificationPrefs } = useData();
+  const prefs = currentUser.notificationPrefs;
+  const [pushState, setPushState] = useState<"registered" | "denied" | "unavailable" | null>(null);
+  const [error, setError] = useState<string | undefined>();
+
+  const set = async (patch: Partial<NotificationPrefs>) => {
+    setError(undefined);
+    try {
+      await updateNotificationPrefs(patch);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't save. Try again.");
+    }
+  };
+
+  const setPush = async (on: boolean) => {
+    await set({ push: on });
+    if (on) setPushState(await registerForPush());
+  };
 
   return (
     <SafeAreaView className="flex-1 bg-bg">
@@ -37,8 +51,24 @@ export default function NotificationSettings() {
       </View>
 
       <ScrollView contentContainerClassName="gap-1 p-6">
-        <Toggle label="Push notifications" description="On this device" value={push} onChange={setPush} />
-        <Toggle label="Email notifications" description={`To your email`} value={email} onChange={setEmail} />
+        <Toggle
+          label="Push notifications"
+          description={Platform.OS === "web" ? "Available in the Android app" : "Alerts on this phone, even when Tabmate is closed"}
+          value={prefs.push}
+          onChange={setPush}
+        />
+        {pushState === "denied" ? (
+          <Pressable accessibilityRole="button" onPress={() => Linking.openSettings()} className="pb-2">
+            <Text className="font-sans text-xs text-danger">
+              Notifications are blocked for Tabmate. Tap to open settings and allow them.
+            </Text>
+          </Pressable>
+        ) : null}
+        {pushState === "unavailable" && Platform.OS !== "web" ? (
+          <Text className="pb-2 font-sans text-xs text-muted">
+            Push isn&apos;t available on this build — you&apos;ll still see notifications inside the app.
+          </Text>
+        ) : null}
 
         <Text className="pb-1 pt-5 font-sans-semibold text-sm text-text">Notify me about</Text>
         {EVENTS.map((e) => (
@@ -46,10 +76,12 @@ export default function NotificationSettings() {
             key={e.key}
             label={e.label}
             description={e.description}
-            value={perEvent[e.key]}
-            onChange={(next) => setPerEvent((prev) => ({ ...prev, [e.key]: next }))}
+            value={prefs[e.key]}
+            onChange={(next) => set({ [e.key]: next })}
           />
         ))}
+
+        {error ? <Text className="pt-3 font-sans text-sm text-danger">{error}</Text> : null}
       </ScrollView>
     </SafeAreaView>
   );

@@ -72,7 +72,114 @@ export function simplifyDebts(balances: Balance[]): Transfer[] {
   return transfers;
 }
 
+/**
+ * Who owes whom, person to person. For each expense, every participant's
+ * owed share is owed to the payer(s) in proportion to what each paid — the
+ * same rule the server uses (pair_context_debts in migration 003), so the
+ * app and the database never disagree. Payments between two people reduce
+ * that pair's debt. Returns unrounded cents keyed "debtor>creditor".
+ */
+function pairwiseLedger(expenses: Expense[], payments: Payment[]) {
+  const debt = new Map<string, number>();
+  const add = (from: string, to: string, cents: number) => {
+    if (from === to || cents === 0) return;
+    debt.set(`${from}>${to}`, (debt.get(`${from}>${to}`) ?? 0) + cents);
+  };
+  for (const e of expenses) {
+    if (e.deletedAt || e.amountCents <= 0) continue;
+    for (const ower of e.shares) {
+      if (ower.owedCents === 0) continue;
+      for (const payer of e.shares) {
+        if (payer.paidCents === 0) continue;
+        add(ower.userId, payer.userId, (ower.owedCents * payer.paidCents) / e.amountCents);
+      }
+    }
+  }
+  for (const p of payments) {
+    if (p.status !== "confirmed") continue;
+    add(p.fromUserId, p.toUserId, -p.amountCents);
+  }
+  return debt;
+}
+
+/**
+ * What one expense means between two people: positive = `other` owes `me`
+ * because of it ("you lent X"), negative = `me` owes `other` ("X lent you").
+ */
+export function expensePairEffect(expense: Expense, me: string, other: string): number {
+  return Math.round(pairNet(pairwiseLedger([expense], []), me, other));
+}
+
+/** What one expense means for `me` overall: paid minus own share. */
+export function expenseNetFor(expense: Expense, me: string): number {
+  const s = expense.shares.find((x) => x.userId === me);
+  return s ? s.paidCents - s.owedCents : 0;
+}
+
+/** Net amount `other` owes `me` (negative = I owe them), unrounded. */
+function pairNet(ledger: Map<string, number>, me: string, other: string) {
+  return (ledger.get(`${other}>${me}`) ?? 0) - (ledger.get(`${me}>${other}`) ?? 0);
+}
+
+/**
+ * What a friend owes me, split by context — each group, plus "" for
+ * expenses/payments outside any group. Positive = they owe me.
+ */
+export function friendBalanceByContext(
+  expenses: Expense[],
+  payments: Payment[],
+  me: string,
+  friend: string
+): Map<string, number> {
+  const byContext = new Map<string, { e: Expense[]; p: Payment[] }>();
+  const bucket = (groupId: string | undefined) => {
+    const key = groupId ?? "";
+    if (!byContext.has(key)) byContext.set(key, { e: [], p: [] });
+    return byContext.get(key)!;
+  };
+  for (const e of expenses) {
+    if (e.shares.some((s) => s.userId === me) && e.shares.some((s) => s.userId === friend)) bucket(e.groupId).e.push(e);
+  }
+  for (const p of payments) {
+    const between = (p.fromUserId === me && p.toUserId === friend) || (p.fromUserId === friend && p.toUserId === me);
+    if (between) bucket(p.groupId).p.push(p);
+  }
+  const result = new Map<string, number>();
+  for (const [key, { e, p }] of byContext) {
+    const cents = Math.round(pairNet(pairwiseLedger(e, p), me, friend));
+    if (cents !== 0) result.set(key, cents);
+  }
+  return result;
+}
+
+/**
+ * Settle-up suggestions inside a group when Simplify Debts is off: each pair
+ * settles exactly what one owes the other directly.
+ */
+export function pairwiseTransfers(expenses: Expense[], payments: Payment[], currencyCode: string): Transfer[] {
+  const ledger = pairwiseLedger(
+    expenses.filter((e) => e.currencyCode === currencyCode),
+    payments.filter((p) => p.currencyCode === currencyCode)
+  );
+  const people = new Set<string>();
+  for (const key of ledger.keys()) for (const id of key.split(">")) people.add(id);
+  const ids = [...people].sort();
+  const transfers: Transfer[] = [];
+  for (let i = 0; i < ids.length; i++) {
+    for (let j = i + 1; j < ids.length; j++) {
+      const cents = Math.round(pairNet(ledger, ids[i], ids[j])); // ids[j] owes ids[i]
+      if (cents > 0) transfers.push({ from: ids[j], to: ids[i], amountCents: cents, currencyCode });
+      if (cents < 0) transfers.push({ from: ids[i], to: ids[j], amountCents: -cents, currencyCode });
+    }
+  }
+  return transfers.sort((a, b) => b.amountCents - a.amountCents);
+}
+
 const CURRENCY_SYMBOLS: Record<string, string> = { INR: "₹", USD: "$", EUR: "€" };
+
+export function currencySymbol(currencyCode: string): string {
+  return CURRENCY_SYMBOLS[currencyCode] ?? currencyCode;
+}
 
 export function formatCents(cents: number, currencyCode: string): string {
   const symbol = CURRENCY_SYMBOLS[currencyCode] ?? `${currencyCode} `;

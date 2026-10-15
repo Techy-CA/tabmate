@@ -12,7 +12,15 @@ import { useData } from "@/lib/data/store";
 // S04 — Home (Groups + Friends)
 export default function Home() {
   const router = useRouter();
-  const { listMyGroups, listFriends, listGroupMembers, getGroupBalances, getFriendBalance, currentUser } = useData();
+  const {
+    listMyGroups,
+    listFriends,
+    listGroupMembers,
+    getGroupBalances,
+    getFriendBalance,
+    currentUser,
+    unreadNotificationCount,
+  } = useData();
   const groups = listMyGroups();
   const friends = listFriends();
 
@@ -21,6 +29,23 @@ export default function Home() {
       <View className="flex-row items-center justify-between px-6 pb-2 pt-4">
         <Text className="font-display text-xl text-text">Hey, {currentUser.name}</Text>
         <View className="flex-row gap-3">
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={
+              unreadNotificationCount > 0 ? `Notifications, ${unreadNotificationCount} unread` : "Notifications"
+            }
+            onPress={() => router.push("/notifications")}
+            className="h-9 w-9 items-center justify-center rounded-pill bg-surface"
+          >
+            <Feather name="bell" size={18} color="#1f2430" />
+            {unreadNotificationCount > 0 ? (
+              <View className="absolute -right-1 -top-1 h-5 min-w-5 items-center justify-center rounded-pill bg-danger px-1">
+                <Text className="font-sans-semibold text-[10px] text-on-accent">
+                  {unreadNotificationCount > 9 ? "9+" : unreadNotificationCount}
+                </Text>
+              </View>
+            ) : null}
+          </Pressable>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Search expenses"
@@ -91,7 +116,13 @@ export default function Home() {
         <View className="gap-2">
           <Text className="font-sans-semibold text-sm text-text">Friends</Text>
           {friends.length === 0 ? (
-            <EmptyState icon="user" title="No friends yet" body="Split a non-group expense and they'll show up here." />
+            <EmptyState icon="user" title="No friends yet" body="Add a friend by email, or split a non-group expense with someone."
+              action={
+                <Pressable accessibilityRole="button" onPress={() => router.push("/friend/add")}>
+                  <Text className="font-sans-semibold text-sm text-accent">Add a friend</Text>
+                </Pressable>
+              }
+            />
           ) : (
             friends.map((f) => {
               const balance = getFriendBalance(f.id);
@@ -100,7 +131,7 @@ export default function Home() {
                   key={f.id}
                   onPress={() => router.push(`/friend/${f.id}`)}
                   accessibilityRole="button"
-                  accessibilityLabel={`${f.name}${balance !== 0 ? `, ${formatCents(Math.abs(balance), "INR")}` : ", settled up"}`}
+                  accessibilityLabel={`${f.name}${balance !== 0 ? `, ${formatCents(Math.abs(balance), currentUser.defaultCurrency)}` : ", settled up"}`}
                   className="flex-row items-center justify-between rounded-lg border border-border bg-bg p-4"
                 >
                   <View className="flex-row items-center gap-3">
@@ -108,7 +139,11 @@ export default function Home() {
                     <Text className="font-sans-semibold text-base text-text">{f.name}</Text>
                   </View>
                   {balance !== 0 ? (
-                    <BalanceStack state={balance > 0 ? "owed-to-you" : "you-owe"} amount={formatCents(Math.abs(balance), "INR")} />
+                    <BalanceStack
+                      state={balance > 0 ? "owed-to-you" : "you-owe"}
+                      amount={formatCents(Math.abs(balance), currentUser.defaultCurrency)}
+                      label={balance > 0 ? "owes you" : "you owe"}
+                    />
                   ) : (
                     <BalanceStack state="settled" />
                   )}

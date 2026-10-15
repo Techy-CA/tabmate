@@ -20,16 +20,23 @@ export default function PaymentDetails() {
   const [venmoUsername, setVenmoUsername] = useState(currentUser.venmoUsername ?? "");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | undefined>();
 
   const save = async () => {
     setSaving(true);
-    await updateCurrentUser({
-      upiId: upiId.trim(),
-      paypalMeHandle: paypalMeHandle.trim(),
-      venmoUsername: venmoUsername.trim(),
-    });
-    setSaving(false);
-    setSaved(true);
+    setError(undefined);
+    try {
+      await updateCurrentUser({
+        upiId: upiId.trim(),
+        paypalMeHandle: paypalMeHandle.trim(),
+        venmoUsername: venmoUsername.trim(),
+      });
+      setSaved(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't save. Try again.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -80,6 +87,7 @@ export default function PaymentDetails() {
         />
 
         {saved ? <Text className="font-sans text-sm text-success">Saved.</Text> : null}
+        {error ? <Text className="font-sans text-sm text-danger">{error}</Text> : null}
         <Button label="Save" size="lg" loading={saving} onPress={save} />
       </ScrollView>
     </SafeAreaView>

@@ -17,30 +17,48 @@ export default function JoinGroup() {
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | undefined>();
   const [preview, setPreview] = useState<Group | null>(null);
+  const [joining, setJoining] = useState(false);
+
+  // New codes are 8 characters; codes minted before migration 002 could be
+  // as short as 4, so those still work.
+  const MIN_CODE_LENGTH = 4;
 
   useEffect(() => {
     // A too-short code doesn't need its own setState — the previous run's
     // cleanup below already clears the stale preview when it tears down.
-    if (code.length < 6) return;
+    if (code.length < MIN_CODE_LENGTH) return;
     let cancelled = false;
-    async function load() {
-      const result = await previewGroupByCode(code);
-      if (!cancelled) setPreview(result);
-    }
-    load();
+    // Debounced: each lookup counts toward the server's rate limit.
+    const timer = setTimeout(async () => {
+      try {
+        const result = await previewGroupByCode(code);
+        if (!cancelled) setPreview(result);
+      } catch (e) {
+        if (!cancelled) setError(e instanceof Error ? e.message : undefined);
+      }
+    }, 500);
     return () => {
       cancelled = true;
+      clearTimeout(timer);
       setPreview(null);
     };
   }, [code, previewGroupByCode]);
 
   const submit = async () => {
-    const group = await joinGroupByCode(code);
-    if (!group) {
-      setError("That invite code is invalid or has expired.");
-      return;
+    if (joining) return;
+    setJoining(true);
+    try {
+      const group = await joinGroupByCode(code);
+      if (!group) {
+        setError("That invite code is invalid or has expired.");
+        return;
+      }
+      router.replace(`/group/${group.id}`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't join. Check your connection and try again.");
+    } finally {
+      setJoining(false);
     }
-    router.replace(`/group/${group.id}`);
   };
 
   return (
@@ -55,13 +73,15 @@ export default function JoinGroup() {
       <View className="gap-5 p-6">
         <Input
           label="Invite code"
-          placeholder="ABC123"
+          placeholder="ABCD2345"
           value={code}
           onChangeText={(t) => {
-            setCode(t.toUpperCase());
+            setCode(t.toUpperCase().replace(/[^A-Z0-9]/g, ""));
             setError(undefined);
           }}
           autoCapitalize="characters"
+          autoCorrect={false}
+          maxLength={12}
           error={error}
         />
 
@@ -72,7 +92,7 @@ export default function JoinGroup() {
           </View>
         ) : null}
 
-        <Button label="Join group" size="lg" disabled={code.length < 6} onPress={submit} />
+        <Button label="Join group" size="lg" loading={joining} disabled={code.length < MIN_CODE_LENGTH} onPress={submit} />
       </View>
     </SafeAreaView>
   );

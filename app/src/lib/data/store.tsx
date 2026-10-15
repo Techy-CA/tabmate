@@ -1,10 +1,10 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, View } from "react-native";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { ActivityIndicator, AppState, View } from "react-native";
 
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 
-import { computeBalances, simplifyDebts } from "./balances";
+import { computeBalances, friendBalanceByContext, pairwiseTransfers, simplifyDebts } from "./balances";
 import {
   mapActivity,
   mapComment,
@@ -12,17 +12,20 @@ import {
   mapFriendship,
   mapGroup,
   mapGroupMember,
+  mapNotification,
   mapPayment,
   mapUser,
   type FriendshipRow,
 } from "./mappers";
 import type {
   ActivityItem,
+  AppNotification,
   Balance,
   Expense,
   ExpenseComment,
   Group,
   GroupMember,
+  NotificationPrefs,
   Payment,
   SplitType,
   Transfer,
@@ -50,6 +53,13 @@ type NewPaymentInput = {
   currencyCode: string;
 };
 
+export type AddFriendResult =
+  | { status: "added"; user: Pick<User, "id" | "name" | "email"> }
+  | { status: "already"; user: Pick<User, "id" | "name" | "email"> }
+  | { status: "invited"; email: string }
+  | { status: "self" }
+  | { status: "invalid" };
+
 type DataContextValue = {
   currentUser: User;
   users: User[];
@@ -64,7 +74,7 @@ type DataContextValue = {
   listMyGroups: () => Group[];
   listGroupMembers: (groupId: string) => User[];
   listFriends: () => User[];
-  addFriendByEmail: (email: string) => Promise<User | "already-friends" | "self" | null>;
+  addFriendByEmail: (email: string) => Promise<AddFriendResult>;
 
   getGroupExpenses: (groupId: string) => Expense[];
   getExpense: (id: string) => Expense | undefined;
@@ -73,7 +83,13 @@ type DataContextValue = {
 
   getGroupBalances: (groupId: string) => Balance[];
   getSimplifiedTransfers: (groupId: string) => Transfer[];
+  /** Who should pay whom to settle the group: simplified when the group has
+   * Simplify Debts on, otherwise each pair's direct debt. */
+  getGroupTransfers: (groupId: string) => Transfer[];
+  /** Positive = the friend owes me. Includes every group plus non-group. */
   getFriendBalance: (friendId: string) => number;
+  /** The friend balance split by context: groupId, or "" for non-group. */
+  getFriendBalanceByContext: (friendId: string) => Map<string, number>;
   getTotalBalance: () => number;
 
   createGroup: (name: string, memberIds: string[]) => Promise<Group>;
@@ -92,13 +108,52 @@ type DataContextValue = {
   createPayment: (input: NewPaymentInput) => Promise<Payment>;
   getPayment: (id: string) => Payment | undefined;
   getFriendPayments: (friendId: string) => Payment[];
+  getGroupPayments: (groupId: string) => Payment[];
   cancelPayment: (id: string) => Promise<void>;
 
   listComments: (expenseId: string) => ExpenseComment[];
   addComment: (expenseId: string, body: string) => Promise<void>;
 
   getActivityFeed: (groupId?: string) => ActivityItem[];
+
+  notifications: AppNotification[];
+  unreadNotificationCount: number;
+  markNotificationRead: (id: string) => Promise<void>;
+  markAllNotificationsRead: () => Promise<void>;
+  updateNotificationPrefs: (patch: Partial<NotificationPrefs>) => Promise<void>;
+  refresh: () => Promise<void>;
 };
+
+// Local caches, and which of them a change to each realtime table can
+// invalidate. A new group membership, for example, makes a whole group's
+// expenses and payments newly visible under RLS.
+type CacheKey =
+  | "users"
+  | "groups"
+  | "groupMembers"
+  | "expenses"
+  | "payments"
+  | "friendships"
+  | "comments"
+  | "activity"
+  | "notifications";
+
+const TABLE_INVALIDATES: Record<string, CacheKey[]> = {
+  users: ["users"],
+  groups: ["groups"],
+  group_members: ["groupMembers", "groups", "users", "expenses", "payments", "activity"],
+  friendships: ["friendships", "users"],
+  expenses: ["expenses", "users", "friendships"],
+  expense_shares: ["expenses"],
+  payments: ["payments"],
+  expense_comments: ["comments"],
+  activity_items: ["activity"],
+  notifications: ["notifications"],
+};
+
+function check(error: { message: string } | null, fallback: string) {
+  if (error) throw new Error(error.message || fallback);
+}
 
 const DataContext = createContext<DataContextValue | null>(null);
 
@@ -113,6 +168,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const [friendships, setFriendships] = useState<FriendshipRow[]>([]);
   const [comments, setComments] = useState<ExpenseComment[]>([]);
   const [activity, setActivity] = useState<ActivityItem[]>([]);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [ready, setReady] = useState(false);
 
   // Each table's RLS policy already scopes rows to what the signed-in user
@@ -150,59 +206,122 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const { data } = await supabase.from("activity_items").select("*").order("created_at", { ascending: false }).limit(200);
     if (data) setActivity(data.map(mapActivity));
   }, []);
+  const fetchNotifications = useCallback(async () => {
+    const { data } = await supabase.from("notifications").select("*").order("created_at", { ascending: false }).limit(100);
+    if (data) setNotifications(data.map(mapNotification));
+  }, []);
 
-  // Initial load, and a full refetch of everything whenever a realtime
-  // change lands — simpler and safer than hand-patching every table's local
-  // state from a partial change payload, at the cost of an extra round trip
-  // per change. Fine at this app's scale.
+  const fetchers = useMemo<Record<CacheKey, () => Promise<void>>>(
+    () => ({
+      users: fetchUsers,
+      groups: fetchGroups,
+      groupMembers: fetchGroupMembers,
+      expenses: fetchExpenses,
+      payments: fetchPayments,
+      friendships: fetchFriendships,
+      comments: fetchComments,
+      activity: fetchActivity,
+      notifications: fetchNotifications,
+    }),
+    [
+      fetchUsers,
+      fetchGroups,
+      fetchGroupMembers,
+      fetchExpenses,
+      fetchPayments,
+      fetchFriendships,
+      fetchComments,
+      fetchActivity,
+      fetchNotifications,
+    ]
+  );
+
   const refetchAll = useCallback(async () => {
-    await Promise.all([
-      fetchUsers(),
-      fetchGroups(),
-      fetchGroupMembers(),
-      fetchExpenses(),
-      fetchPayments(),
-      fetchFriendships(),
-      fetchComments(),
-      fetchActivity(),
-    ]);
-  }, [fetchUsers, fetchGroups, fetchGroupMembers, fetchExpenses, fetchPayments, fetchFriendships, fetchComments, fetchActivity]);
+    await Promise.all(Object.values(fetchers).map((f) => f()));
+  }, [fetchers]);
+
+  // One write (e.g. create_expense) fires a burst of row events — the
+  // expense, each share, the activity row, each notification. Collect the
+  // affected caches and refetch each one once, right after the burst.
+  const dirty = useRef(new Set<CacheKey>());
+  const flushTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const invalidate = useCallback(
+    (keys: CacheKey[]) => {
+      for (const k of keys) dirty.current.add(k);
+      if (flushTimer.current) return;
+      flushTimer.current = setTimeout(() => {
+        flushTimer.current = null;
+        const keysToFetch = [...dirty.current];
+        dirty.current.clear();
+        Promise.all(keysToFetch.map((k) => fetchers[k]())).catch(() => {});
+      }, 250);
+    },
+    [fetchers]
+  );
 
   useEffect(() => {
     // Signing out (userId -> null) doesn't need its own setState here — the
     // previous run's cleanup below already reset "ready" when it tore down.
     if (!isAuthenticated || !userId) return;
-    // No setReady(false) needed here: it starts false and the previous
-    // run's cleanup already resets it to false before this one starts.
     let cancelled = false;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+
     async function load() {
       await refetchAll();
       if (!cancelled) setReady(true);
     }
-    load();
 
-    // Realtime: any insert/update/delete on these tables (from this user, a
-    // groupmate, or a friend — RLS still applies to what the subscription
-    // can see) triggers a full refetch, so changes made by other users show
-    // up here without a manual reload.
-    const channel = supabase
-      .channel("tabmate-changes")
-      .on("postgres_changes", { event: "*", schema: "public", table: "expenses" }, () => refetchAll())
-      .on("postgres_changes", { event: "*", schema: "public", table: "expense_shares" }, () => refetchAll())
-      .on("postgres_changes", { event: "*", schema: "public", table: "payments" }, () => refetchAll())
-      .on("postgres_changes", { event: "*", schema: "public", table: "group_members" }, () => refetchAll())
-      .on("postgres_changes", { event: "*", schema: "public", table: "groups" }, () => refetchAll())
-      .on("postgres_changes", { event: "*", schema: "public", table: "friendships" }, () => refetchAll())
-      .on("postgres_changes", { event: "*", schema: "public", table: "expense_comments" }, () => refetchAll())
-      .on("postgres_changes", { event: "*", schema: "public", table: "activity_items" }, () => refetchAll())
-      .subscribe();
+    // Realtime: any insert/update/delete on these tables — by this user, a
+    // groupmate, or a friend — lands here within a second, so other people's
+    // changes show up without closing and reopening the app. RLS still
+    // decides which rows each user's subscription can see. (Requires the
+    // tables to be in the supabase_realtime publication — migration 002.)
+    function subscribe() {
+      if (cancelled) return;
+      let ch = supabase.channel(`tabmate-${userId}-${Date.now()}`);
+      for (const [table, keys] of Object.entries(TABLE_INVALIDATES)) {
+        ch = ch.on("postgres_changes", { event: "*", schema: "public", table }, () => invalidate(keys));
+      }
+      const thisChannel = ch;
+      channel = ch.subscribe((status) => {
+        if (cancelled || channel !== thisChannel) return;
+        if (status === "SUBSCRIBED") {
+          // Anything that changed while disconnected was missed — catch up.
+          refetchAll().catch(() => {});
+        } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+          // Mobile networks drop sockets all the time; rebuild the channel.
+          if (retryTimer) return;
+          retryTimer = setTimeout(() => {
+            retryTimer = null;
+            supabase.removeChannel(thisChannel);
+            subscribe();
+          }, 3000);
+        }
+      });
+    }
+
+    load();
+    subscribe();
+
+    // Android suspends the socket while the app is backgrounded; on return,
+    // catch up immediately instead of waiting for the reconnect.
+    const appStateSub = AppState.addEventListener("change", (state) => {
+      if (state === "active") refetchAll().catch(() => {});
+    });
 
     return () => {
       cancelled = true;
       setReady(false);
-      supabase.removeChannel(channel);
+      appStateSub.remove();
+      if (retryTimer) clearTimeout(retryTimer);
+      if (flushTimer.current) {
+        clearTimeout(flushTimer.current);
+        flushTimer.current = null;
+      }
+      if (channel) supabase.removeChannel(channel);
     };
-  }, [isAuthenticated, userId, refetchAll]);
+  }, [isAuthenticated, userId, refetchAll, invalidate]);
 
   const currentUser = users.find((u) => u.id === userId);
 
@@ -217,7 +336,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       if (patch.upiId !== undefined) payload.upi_id = patch.upiId || null;
       if (patch.paypalMeHandle !== undefined) payload.paypal_me_handle = patch.paypalMeHandle || null;
       if (patch.venmoUsername !== undefined) payload.venmo_username = patch.venmoUsername || null;
-      await supabase.from("users").update(payload).eq("id", userId);
+      const { error } = await supabase.from("users").update(payload).eq("id", userId);
+      check(error, "Couldn't save your profile");
       await fetchUsers();
     },
     [userId, fetchUsers]
@@ -244,10 +364,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
   const listFriends = useCallback(() => {
     const ids = new Set<string>();
+    const myGroupIds = new Set(groupMembers.filter((x) => x.userId === userId && !x.leftAt).map((x) => x.groupId));
     for (const m of groupMembers) {
-      if (m.leftAt) continue;
-      const myGroupIds = groupMembers.filter((x) => x.userId === userId && !x.leftAt).map((x) => x.groupId);
-      if (myGroupIds.includes(m.groupId) && m.userId !== userId) ids.add(m.userId);
+      if (!m.leftAt && myGroupIds.has(m.groupId) && m.userId !== userId) ids.add(m.userId);
     }
     for (const e of expenses) {
       if (!e.groupId && !e.deletedAt) {
@@ -261,27 +380,20 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     return [...ids].map((id) => getUser(id)).filter((u): u is User => !!u);
   }, [groupMembers, expenses, friendships, userId, getUser]);
 
+  // Existing user -> friendship + a notification to them. Not on Tabmate
+  // yet -> a pending invite; they're auto-friended the moment they sign up
+  // with that email (handle_new_auth_user, migration 002).
   const addFriendByEmail = useCallback(
-    async (email: string): Promise<User | "already-friends" | "self" | null> => {
-      const alreadyFriend = (id: string) =>
-        friendships.some((f) => (f.userIdA === userId && f.userIdB === id) || (f.userIdB === userId && f.userIdA === id));
+    async (email: string): Promise<AddFriendResult> => {
       const { data, error } = await supabase.rpc("add_friend_by_email", { p_email: email.trim() });
-      if (error) {
-        // The RPC raises for "cannot add yourself" — everything else (no
-        // match) comes back as data === null, not an error.
-        return "self";
+      check(error, "Couldn't add friend");
+      const result = data as AddFriendResult;
+      if (result.status === "added" || result.status === "already") {
+        await Promise.all([fetchFriendships(), fetchUsers()]);
       }
-      if (!data) return null;
-      const user = mapUser(data as Record<string, unknown>);
-      if (alreadyFriend(user.id)) {
-        await fetchFriendships();
-        return "already-friends";
-      }
-      await fetchFriendships();
-      await fetchUsers();
-      return user;
+      return result;
     },
-    [friendships, userId, fetchFriendships, fetchUsers]
+    [fetchFriendships, fetchUsers]
   );
 
   const getGroupExpenses = useCallback(
@@ -319,27 +431,32 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
   const getSimplifiedTransfers = useCallback((groupId: string) => simplifyDebts(getGroupBalances(groupId)), [getGroupBalances]);
 
+  const getGroupTransfers = useCallback(
+    (groupId: string) => {
+      const group = getGroup(groupId);
+      if (!group) return [];
+      if (group.simplifyDebts) return getSimplifiedTransfers(groupId);
+      return pairwiseTransfers(
+        expenses.filter((e) => e.groupId === groupId),
+        payments.filter((p) => p.groupId === groupId),
+        group.defaultCurrency
+      );
+    },
+    [getGroup, getSimplifiedTransfers, expenses, payments]
+  );
+
+  const getFriendBalanceByContext = useCallback(
+    (friendId: string) => (userId ? friendBalanceByContext(expenses, payments, userId, friendId) : new Map<string, number>()),
+    [expenses, payments, userId]
+  );
+
   const getFriendBalance = useCallback(
     (friendId: string) => {
-      let net = 0;
-      for (const e of getFriendExpenses(friendId)) {
-        if (e.deletedAt) continue;
-        const mine = e.shares.find((s) => s.userId === userId);
-        const theirs = e.shares.find((s) => s.userId === friendId);
-        if (!mine || !theirs) continue;
-        const iPaid = mine.paidCents > 0;
-        const theyPaid = theirs.paidCents > 0;
-        if (iPaid && !theyPaid) net += theirs.owedCents;
-        else if (theyPaid && !iPaid) net -= mine.owedCents;
-      }
-      for (const p of payments) {
-        if (p.status !== "confirmed") continue;
-        if (p.fromUserId === userId && p.toUserId === friendId) net += p.amountCents;
-        if (p.toUserId === userId && p.fromUserId === friendId) net -= p.amountCents;
-      }
-      return net;
+      let total = 0;
+      for (const cents of getFriendBalanceByContext(friendId).values()) total += cents;
+      return total;
     },
-    [getFriendExpenses, payments, userId]
+    [getFriendBalanceByContext]
   );
 
   const getTotalBalance = useCallback(() => {
@@ -363,12 +480,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
   const createGroup = useCallback(
     async (name: string, memberIds: string[]) => {
-      const { data, error } = await supabase.rpc("create_group", { p_name: name });
+      // Group + creator + chosen members in one transaction (the RPC), so a
+      // failure can't leave a group missing half its members.
+      const { data, error } = await supabase.rpc("create_group", { p_name: name, p_member_ids: memberIds });
       if (error || !data) throw new Error(error?.message ?? "Failed to create group");
       const group = mapGroup(data as Record<string, unknown>);
-      if (memberIds.length > 0) {
-        await supabase.from("group_members").insert(memberIds.map((id) => ({ group_id: group.id, user_id: id })));
-      }
       await Promise.all([fetchGroups(), fetchGroupMembers()]);
       return group;
     },
@@ -377,10 +493,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
   const updateGroup = useCallback(
     async (id: string, patch: Partial<Pick<Group, "name" | "simplifyDebts">>) => {
-      await supabase
-        .from("groups")
-        .update({ name: patch.name, simplify_debts: patch.simplifyDebts })
-        .eq("id", id);
+      const payload: Record<string, unknown> = {};
+      if (patch.name !== undefined) payload.name = patch.name;
+      if (patch.simplifyDebts !== undefined) payload.simplify_debts = patch.simplifyDebts;
+      const { error } = await supabase.from("groups").update(payload).eq("id", id);
+      check(error, "Couldn't update the group");
       await fetchGroups();
     },
     [fetchGroups]
@@ -388,11 +505,12 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
   const removeMember = useCallback(
     async (groupId: string, memberId: string) => {
-      await supabase
+      const { error } = await supabase
         .from("group_members")
         .update({ left_at: new Date().toISOString() })
         .eq("group_id", groupId)
         .eq("user_id", memberId);
+      check(error, "Couldn't remove member");
       await fetchGroupMembers();
     },
     [fetchGroupMembers]
@@ -407,7 +525,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const previewGroupByCode = useCallback(async (code: string) => {
-    const { data } = await supabase.rpc("preview_group_by_code", { p_code: code });
+    const { data, error } = await supabase.rpc("preview_group_by_code", { p_code: code });
+    check(error, "Couldn't check that code");
     const row = (data as { group_id: string; name: string; cover_photo_url: string | null }[] | null)?.[0];
     if (!row) return null;
     return {
@@ -424,12 +543,17 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const joinGroupByCode = useCallback(
     async (code: string) => {
       const { data, error } = await supabase.rpc("join_group", { p_code: code });
-      if (error || !data) return null;
+      check(error, "Couldn't join the group");
+      // An invalid/expired code returns null rather than raising (so the
+      // rate-limit attempt is recorded) — PostgREST may surface that as a
+      // row of nulls rather than null itself.
+      if (!data || !(data as { id?: string }).id) return null;
       const group = mapGroup(data as Record<string, unknown>);
-      await Promise.all([fetchGroups(), fetchGroupMembers()]);
+      // Joining makes the group's whole history visible — load all of it.
+      await refetchAll();
       return group;
     },
-    [fetchGroups, fetchGroupMembers]
+    [refetchAll]
   );
 
   const createExpense = useCallback(
@@ -477,7 +601,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
   const softDeleteExpense = useCallback(
     async (id: string) => {
-      await supabase.from("expenses").update({ deleted_at: new Date().toISOString() }).eq("id", id);
+      const { error } = await supabase.from("expenses").update({ deleted_at: new Date().toISOString() }).eq("id", id);
+      check(error, "Couldn't delete the expense");
       await fetchExpenses();
     },
     [fetchExpenses]
@@ -485,7 +610,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
   const restoreExpense = useCallback(
     async (id: string) => {
-      await supabase.from("expenses").update({ deleted_at: null }).eq("id", id);
+      const { error } = await supabase.from("expenses").update({ deleted_at: null }).eq("id", id);
+      check(error, "Couldn't restore the expense");
       await fetchExpenses();
     },
     [fetchExpenses]
@@ -518,6 +644,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     [payments, userId]
   );
 
+  const getGroupPayments = useCallback(
+    (groupId: string) => payments.filter((p) => p.groupId === groupId).sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+    [payments]
+  );
+
   const cancelPayment = useCallback(
     async (id: string) => {
       const { error } = await supabase.rpc("cancel_payment", { p_id: id });
@@ -535,7 +666,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const addComment = useCallback(
     async (expenseId: string, body: string) => {
       if (!userId) return;
-      await supabase.from("expense_comments").insert({ expense_id: expenseId, user_id: userId, body });
+      const { error } = await supabase.from("expense_comments").insert({ expense_id: expenseId, user_id: userId, body });
+      check(error, "Couldn't post your comment");
       await Promise.all([fetchComments(), fetchActivity()]);
     },
     [userId, fetchComments, fetchActivity]
@@ -544,6 +676,36 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const getActivityFeed = useCallback(
     (groupId?: string) => activity.filter((a) => (groupId ? a.groupId === groupId : true)).sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
     [activity]
+  );
+
+  const unreadNotificationCount = useMemo(() => notifications.filter((n) => !n.readAt).length, [notifications]);
+
+  const markNotificationRead = useCallback(async (id: string) => {
+    const now = new Date().toISOString();
+    setNotifications((prev) => prev.map((n) => (n.id === id && !n.readAt ? { ...n, readAt: now } : n)));
+    await supabase.from("notifications").update({ read_at: now }).eq("id", id).is("read_at", null);
+  }, []);
+
+  const markAllNotificationsRead = useCallback(async () => {
+    if (!userId) return;
+    const now = new Date().toISOString();
+    setNotifications((prev) => prev.map((n) => (n.readAt ? n : { ...n, readAt: now })));
+    await supabase.from("notifications").update({ read_at: now }).eq("user_id", userId).is("read_at", null);
+  }, [userId]);
+
+  const updateNotificationPrefs = useCallback(
+    async (patch: Partial<NotificationPrefs>) => {
+      if (!userId || !currentUser) return;
+      const next = { ...currentUser.notificationPrefs, ...patch };
+      // optimistic — toggles should flip instantly
+      setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, notificationPrefs: next } : u)));
+      const { error } = await supabase.from("users").update({ notification_prefs: next }).eq("id", userId);
+      if (error) {
+        await fetchUsers();
+        throw new Error(error.message);
+      }
+    },
+    [userId, currentUser, fetchUsers]
   );
 
   const value = useMemo<DataContextValue | null>(() => {
@@ -566,7 +728,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       listMyExpenses,
       getGroupBalances,
       getSimplifiedTransfers,
+      getGroupTransfers,
       getFriendBalance,
+      getFriendBalanceByContext,
       getTotalBalance,
       createGroup,
       updateGroup,
@@ -582,10 +746,17 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       createPayment,
       getPayment,
       getFriendPayments,
+      getGroupPayments,
       cancelPayment,
       listComments,
       addComment,
       getActivityFeed,
+      notifications,
+      unreadNotificationCount,
+      markNotificationRead,
+      markAllNotificationsRead,
+      updateNotificationPrefs,
+      refresh: refetchAll,
     };
   }, [
     currentUser,
@@ -605,7 +776,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     listMyExpenses,
     getGroupBalances,
     getSimplifiedTransfers,
+    getGroupTransfers,
     getFriendBalance,
+    getFriendBalanceByContext,
     getTotalBalance,
     createGroup,
     updateGroup,
@@ -621,16 +794,23 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     createPayment,
     getPayment,
     getFriendPayments,
+    getGroupPayments,
     cancelPayment,
     listComments,
     addComment,
     getActivityFeed,
+    notifications,
+    unreadNotificationCount,
+    markNotificationRead,
+    markAllNotificationsRead,
+    updateNotificationPrefs,
+    refetchAll,
   ]);
 
-  // Screens that call useData() assume currentUser is always defined (true
-  // throughout this app's history on the fake layer) — rather than touch
-  // every call site to handle "not loaded yet", block rendering children
-  // until the first real fetch resolves and the user's own row is in cache.
+  // Screens that call useData() assume currentUser is always defined —
+  // rather than touch every call site to handle "not loaded yet", block
+  // rendering children until the first real fetch resolves and the user's
+  // own row is in cache.
   //
   // authLoading matters here too: useAuth()'s getSession() is async, so
   // isAuthenticated reads false for a brief window even when a session
@@ -662,4 +842,9 @@ export function useData() {
   const ctx = useContext(DataContext);
   if (!ctx) throw new Error("useData must be used inside DataProvider");
   return ctx;
+}
+
+/** For components rendered outside the signed-in tree (e.g. root-level push wiring). */
+export function useOptionalData() {
+  return useContext(DataContext);
 }

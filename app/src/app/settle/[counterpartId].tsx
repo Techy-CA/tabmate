@@ -7,7 +7,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Avatar } from "@/components/Avatar";
 import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
-import { formatCents } from "@/lib/data/balances";
+import { currencySymbol, formatCents } from "@/lib/data/balances";
 import { useData } from "@/lib/data/store";
 import { goBack } from "@/lib/nav";
 import { buildPaymentLinks } from "@/lib/paymentLinks";
@@ -19,16 +19,43 @@ import { buildPaymentLinks } from "@/lib/paymentLinks";
 export default function SettleUp() {
   const { counterpartId, groupId } = useLocalSearchParams<{ counterpartId: string; groupId?: string }>();
   const router = useRouter();
-  const { getUser, getFriendBalance, getGroupBalances, currentUser, createPayment } = useData();
+  const { getUser, getGroup, getFriendBalance, getFriendBalanceByContext, getGroupTransfers, currentUser, createPayment } =
+    useData();
 
   const counterpart = getUser(counterpartId);
-  const groupBalance = groupId ? getGroupBalances(groupId).find((b) => b.userId === currentUser.id) : undefined;
-  // Positive = the group/friend owes the current user; negative = the current
-  // user owes them. Settle Up has to handle both — the original's own help
-  // text is "pay someone back OR record that you've been paid" (recon.md).
-  const relevantBalanceCents = groupBalance ? groupBalance.balanceCents : getFriendBalance(counterpartId);
+  const group = groupId ? getGroup(groupId) : undefined;
+  const currencyCode = group?.defaultCurrency ?? currentUser.defaultCurrency;
+  // Positive = they owe the current user; negative = the current user owes
+  // them. Settle Up handles both — "pay someone back OR record that you've
+  // been paid" (recon.md). In a group it's exactly what's owed between the
+  // two of you (the group screen's transfer), never your whole group
+  // balance, which in a 3+ person group can include debts to other people.
+  const groupTransfer = groupId
+    ? getGroupTransfers(groupId).find(
+        (t) =>
+          (t.from === currentUser.id && t.to === counterpartId) || (t.to === currentUser.id && t.from === counterpartId)
+      )
+    : undefined;
+  const relevantBalanceCents = groupId
+    ? groupTransfer
+      ? groupTransfer.from === currentUser.id
+        ? -groupTransfer.amountCents
+        : groupTransfer.amountCents
+      : 0
+    : getFriendBalance(counterpartId);
   const iOwe = relevantBalanceCents < 0;
   const suggestedCents = Math.abs(relevantBalanceCents);
+
+  // Outside a group, the server applies the payment to the contexts where
+  // you owe each other — non-group expenses first, then each group — so
+  // every group balance stays in sync with the friend balance. Show where.
+  const breakdown = groupId
+    ? []
+    : [...getFriendBalanceByContext(counterpartId).entries()]
+        .filter(([, cents]) => (iOwe ? cents < 0 : cents > 0))
+        .map(([ctx, cents]) => ({ ctx, label: ctx ? getGroup(ctx)?.name ?? "A group" : "Non-group expenses", cents: Math.abs(cents) }))
+        // same order the server applies it in: non-group first, then the largest group debt
+        .sort((a, b) => (a.ctx === "" ? -1 : b.ctx === "" ? 1 : b.cents - a.cents));
 
   const [amountText, setAmountText] = useState((suggestedCents / 100).toFixed(2));
   const [done, setDone] = useState(false);
@@ -59,7 +86,7 @@ export default function SettleUp() {
         fromUserId: iOwe ? currentUser.id : counterpart.id,
         toUserId: iOwe ? counterpart.id : currentUser.id,
         amountCents,
-        currencyCode: "INR",
+        currencyCode,
       });
     } catch {
       setSaving(false);
@@ -92,7 +119,7 @@ export default function SettleUp() {
               <Text className="font-sans text-sm text-muted">with {counterpart.name}</Text>
             </View>
 
-            <Text className="font-display text-display text-success">{formatCents(amountCents, "INR")}</Text>
+            <Text className="font-display text-display text-success">{formatCents(amountCents, currencyCode)}</Text>
 
             <Button label="Done" onPress={() => goBack(router, fallbackHref)} />
           </View>
@@ -117,13 +144,28 @@ export default function SettleUp() {
           <Text className="font-sans-semibold text-base text-text">{counterpart.name}</Text>
         </View>
 
-        <Input label="Amount" prefix="₹" keyboardType="decimal-pad" value={amountText} onChangeText={setAmountText} />
+        <Input label="Amount" prefix={currencySymbol(currencyCode)} keyboardType="decimal-pad" value={amountText} onChangeText={setAmountText} />
 
         <Text className="font-sans text-sm text-muted">
           {iOwe
             ? `This just logs that you paid ${counterpart.name} outside the app (cash, bank transfer, UPI). Tabmate doesn't move any money itself.`
             : `This just logs that ${counterpart.name} paid you outside the app. Tabmate doesn't move any money itself.`}
         </Text>
+
+        {breakdown.length > 1 || (breakdown.length === 1 && breakdown[0].label !== "Non-group expenses") ? (
+          <View className="gap-1 rounded-lg border border-border bg-surface p-3">
+            <Text className="font-sans-medium text-xs text-muted">This settles</Text>
+            {breakdown.map((b) => (
+              <View key={b.label} className="flex-row justify-between">
+                <Text className="font-sans text-sm text-text">{b.label}</Text>
+                <Text className="font-sans-medium text-sm text-text">{formatCents(b.cents, currencyCode)}</Text>
+              </View>
+            ))}
+            <Text className="pt-1 font-sans text-xs text-muted">
+              Paying less settles these in this order; group balances update to match.
+            </Text>
+          </View>
+        ) : null}
 
         {payLinks.length > 0 ? (
           <View className="gap-2">

@@ -14,14 +14,21 @@ export default function EditName() {
   const { currentUser, updateCurrentUser } = useData();
   const [name, setName] = useState(currentUser.name);
   const [error, setError] = useState<string | undefined>();
+  const [saving, setSaving] = useState(false);
 
   const save = async () => {
     if (!name.trim()) {
       setError("Name can't be empty.");
       return;
     }
-    await updateCurrentUser({ name: name.trim() });
-    goBack(router, "/account");
+    setSaving(true);
+    try {
+      await updateCurrentUser({ name: name.trim() });
+      goBack(router, "/account");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't save. Try again.");
+      setSaving(false);
+    }
   };
 
   return (
@@ -35,7 +42,7 @@ export default function EditName() {
 
       <View className="gap-5 p-6">
         <Input label="Name" value={name} onChangeText={setName} error={error} autoFocus />
-        <Button label="Save" size="lg" onPress={save} />
+        <Button label="Save" size="lg" loading={saving} onPress={save} />
       </View>
     </SafeAreaView>
   );
