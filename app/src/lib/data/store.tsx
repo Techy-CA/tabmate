@@ -150,6 +150,8 @@ type DataContextValue = {
   cancelPayment: (id: string) => Promise<void>;
   /** In-app + push nudge to someone who owes you (max once a day per person). */
   sendReminder: (userId: string, amountCents: number, currencyCode: string) => Promise<"sent" | "too_soon">;
+  /** Permanently deletes the login + personal data (migration 009); shared history stays as "Deleted user". */
+  deleteAccount: () => Promise<void>;
 
   listComments: (expenseId: string) => ExpenseComment[];
   addComment: (expenseId: string, body: string) => Promise<void>;
@@ -805,6 +807,13 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     return ((data as { status: string }).status === "too_soon" ? "too_soon" : "sent") as "sent" | "too_soon";
   }, []);
 
+  const deleteAccount = useCallback(async () => {
+    const { error } = await supabase.rpc("delete_my_account");
+    check(error, "Couldn't delete your account");
+    // the login no longer exists; clear the local session too
+    await supabase.auth.signOut().catch(() => {});
+  }, []);
+
   const listComments = useCallback(
     (expenseId: string) => comments.filter((c) => c.expenseId === expenseId).sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
     [comments]
@@ -901,6 +910,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       getGroupPayments,
       cancelPayment,
       sendReminder,
+      deleteAccount,
       listComments,
       addComment,
       getActivityFeed,
@@ -955,6 +965,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     getGroupPayments,
     cancelPayment,
     sendReminder,
+    deleteAccount,
     listComments,
     addComment,
     getActivityFeed,

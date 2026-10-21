@@ -12,6 +12,8 @@ Run these files in order. Each one is safe to re-run.
 6. `replica/migration_005_pending_members.sql`. People not on Tabmate yet can be added as *pending* friends or group members and split with immediately. When they sign up with that email or number, everything moves into their account.
 
 7. `replica/migration_007_phone_without_otp.sql`. Mobile numbers are saved without OTP, so there's no SMS cost. Whoever invited a pending person is notified when someone takes them over.
+8. `replica/migration_008_features.sql`. Adds reminders and the weekly check-in, recurring expenses that post automatically, itemized bills, notes, edit history, trip mode and the kitty. **Enable the `pg_cron` extension first** (Database → Extensions → pg_cron) so recurring expenses post every night and the weekly reminder goes out on Sundays. Without it the app still posts due recurring expenses whenever someone opens it.
+9. `replica/migration_009_account_deletion.sql`. Adds in-app **Delete my account**, which Google Play requires.
 
 **Keep "Confirm email" ON** (Authentication → Providers → Email). A pending person's data is handed over at sign-up, so the email has to be proven first.
 
@@ -68,3 +70,26 @@ Push doesn't work in Expo Go on Android (SDK 53+). Use the APK or a dev build.
 - Server triggers write a row to `notifications` for each event that involves you: you're added as a friend or to a group, an expense involving you is added, edited, deleted or restored, someone settles up with you, someone comments, someone joins your group, or a friend you invited signs up.
 - Each new notification row is forwarded to your phones through the Expo push service (`pg_net`). Your per-category settings under Account → Notifications are applied on the server.
 - If you add a friend by an email that isn't on Tabmate yet, a pending invite is saved and the share sheet opens. When they sign up with that email, you're both connected automatically and you get a notification.
+
+## 5. Publishing on Google Play
+
+Play needs an **AAB** (Android App Bundle), not an APK. The `production` profile builds one, and EAS keeps the signing key and increases the version code for you.
+
+```bash
+npx eas-cli@latest build -p android --profile production   # .aab for Play
+npx eas-cli@latest build -p android --profile preview      # .apk to install directly
+```
+
+The `production` environment on EAS needs the same `EXPO_PUBLIC_SUPABASE_*` variables as `preview`.
+
+In the [Play Console](https://play.google.com/console) (one-time $25 developer fee):
+
+1. **Create the app** and upload the `.aab` to *Internal testing* first, then *Production*.
+2. **Privacy policy URL:** host `docs/privacy-policy.md`. The easy way is GitHub repo → Settings → Pages → deploy from `main`, folder `/docs`. Then paste `https://<user>.github.io/tabmate/privacy-policy`.
+3. **Data deletion:** use the `docs/delete-account.md` URL from the same site. The in-app option is under Account → Security & app lock.
+4. **Data safety form** (matches the privacy policy):
+   - **Collected:** name, email, phone number (optional), "other financial info" (expense records), contacts (only processed for friend matching, not stored), app interactions.
+   - **Not shared with third parties.** Data is encrypted in transit, and users can request deletion.
+5. **Permissions:** declare `READ_CONTACTS` for "find friends in your contacts". The app shows a disclosure before reading contacts.
+6. **Content rating:** fill in the questionnaire (no ads, no gambling). **Target audience:** 13+.
+7. **Package name:** the package `com.tabmate.app` must be unused on Play. If Play rejects it, change `android.package` in `app.json` (for example `com.<yourname>.tabmate`) and rebuild.

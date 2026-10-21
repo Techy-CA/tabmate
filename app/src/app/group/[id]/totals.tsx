@@ -5,6 +5,7 @@ import { Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Avatar } from "@/components/Avatar";
+import { BarList, categoryLabel, lastMonths, MonthBars } from "@/components/Charts";
 import { EmptyState } from "@/components/EmptyState";
 import { SegmentedControl } from "@/components/SegmentedControl";
 import { formatCents } from "@/lib/data/balances";
@@ -38,7 +39,7 @@ export default function Totals() {
   const group = getGroup(id);
   if (!group) return null;
 
-  const members = listGroupMembers(group.id);
+  const members = listGroupMembers(group.id).filter((m) => !m.isKitty);
   const allExpenses = getGroupExpenses(group.id).filter((e) => !e.deletedAt);
 
   let expenses = allExpenses;
@@ -48,6 +49,14 @@ export default function Totals() {
   }
 
   const totalSpent = expenses.reduce((s, e) => s + e.amountCents, 0);
+
+  const byCategory = [...expenses.reduce((m, e) => m.set(e.category, (m.get(e.category) ?? 0) + e.amountCents), new Map<string, number>())]
+    .map(([c, cents]) => ({ key: c, label: categoryLabel(c), cents }))
+    .sort((a, b) => b.cents - a.cents);
+  const months = lastMonths(6).map((m) => ({
+    ...m,
+    cents: allExpenses.filter((e) => e.expenseDate.startsWith(m.key)).reduce((s, e) => s + e.amountCents, 0),
+  }));
 
   const perMember = members.map((m) => {
     const paid = expenses.reduce((s, e) => s + (e.shares.find((sh) => sh.userId === m.id)?.paidCents ?? 0), 0);
@@ -77,7 +86,16 @@ export default function Totals() {
         {expenses.length === 0 ? (
           <EmptyState icon="bar-chart-2" title="Nothing in this period" body="Try a different range, or add an expense." />
         ) : (
-          <View className="gap-3">
+          <View className="gap-6">
+            <View className="gap-3">
+              <Text className="font-sans-semibold text-sm text-text">By category</Text>
+              <BarList rows={byCategory} currency={group.defaultCurrency} />
+            </View>
+            <View className="gap-3">
+              <Text className="font-sans-semibold text-sm text-text">Last 6 months</Text>
+              <MonthBars months={months} currency={group.defaultCurrency} />
+            </View>
+            <Text className="font-sans-semibold text-sm text-text">By person</Text>
             {perMember.map(({ user, paid, owed }) => (
               <View key={user.id} className="gap-1 rounded-lg border border-border p-3">
                 <View className="flex-row items-center gap-2">

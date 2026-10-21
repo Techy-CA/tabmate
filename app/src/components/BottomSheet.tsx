@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { Animated, Modal, Pressable, Text, View } from "react-native";
 
+import { useTheme } from "@/lib/theme";
+
 export type BottomSheetProps = {
   visible: boolean;
   onClose: () => void;
@@ -25,11 +27,15 @@ export function BottomSheet({ visible, onClose, title, children }: BottomSheetPr
     }).start();
   }, [visible, translateY]);
 
+  // a Modal renders outside the themed root on web, so re-apply the theme here
+  const { rootStyle } = useTheme();
+
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable
         accessibilityLabel="Close"
         onPress={onClose}
+        style={rootStyle}
         className="flex-1 justify-end bg-black/40"
       >
         <Animated.View

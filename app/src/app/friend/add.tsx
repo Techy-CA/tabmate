@@ -7,7 +7,10 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Avatar } from "@/components/Avatar";
 import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
 import { loadDeviceContacts, type DeviceContact } from "@/lib/contacts";
+import { confirmAction } from "@/lib/confirm";
 import { useData, type AddFriendResult, type ContactMatch } from "@/lib/data/store";
 import { inviteMessage, sendInvite } from "@/lib/invite";
 import { goBack } from "@/lib/nav";
@@ -77,6 +80,24 @@ export default function AddFriend() {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  // Google Play requires a clear in-app disclosure before contacts are
+  // read and sent anywhere; asked once per install.
+  const CONSENT_KEY = "tabmate.contactsConsent";
+  const requestContacts = async () => {
+    const consented = await AsyncStorage.getItem(CONSENT_KEY).catch(() => null);
+    if (consented === "1") return loadContacts();
+    confirmAction({
+      title: "Find friends from contacts?",
+      message:
+        "Tabmate will read the phone numbers and emails in your contacts and send them to our server only to check which of them already use Tabmate. They aren't stored or used for anything else.",
+      confirmLabel: "Allow",
+      onConfirm: async () => {
+        await AsyncStorage.setItem(CONSENT_KEY, "1").catch(() => {});
+        loadContacts();
+      },
+    });
   };
 
   const loadContacts = async () => {
@@ -237,7 +258,7 @@ export default function AddFriend() {
                 icon="book"
                 title="Find friends from contacts"
                 subtitle="See who's already on Tabmate, invite the rest"
-                onPress={loadContacts}
+                onPress={requestContacts}
               />
               {!currentUser.phone ? (
                 <OptionRow
