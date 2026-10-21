@@ -45,3 +45,6 @@ end;
 $$;
 revoke execute on function delete_my_account() from public, anon;
 grant execute on function delete_my_account() to authenticated;
+
+-- make the API see the new functions/columns right away (avoids "not in the schema cache")
+notify pgrst, 'reload schema';

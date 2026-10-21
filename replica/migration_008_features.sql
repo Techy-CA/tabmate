@@ -369,3 +369,6 @@ do $$ begin
     alter publication supabase_realtime add table public.expense_items;
   end if;
 end $$;
+
+-- make the API see the new functions/columns right away (avoids "not in the schema cache")
+notify pgrst, 'reload schema';
